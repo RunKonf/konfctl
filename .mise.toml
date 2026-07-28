@@ -1,0 +1,64 @@
+[tools]
+rust = "1.94"
+
+# --- Workflow Tasks ---
+
+[tasks.all]
+description = "Run formatting, linting, tests, and release build"
+depends = ["fmt", "clippy", "test", "build"]
+
+[tasks.check]
+description = "Run all checks (clippy, fmt, test)"
+depends = ["clippy", "fmt-check", "test"]
+
+# --- Build & Install ---
+
+[tasks.build]
+description = "Build the CLI in release mode"
+run = "cargo build --release"
+
+[tasks.install]
+description = "Install the CLI locally"
+run = "cargo install --path ."
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "cargo clean"
+
+# --- Code Quality ---
+
+[tasks.clippy]
+description = "Run clippy lints (pedantic, warnings as errors)"
+run = "cargo clippy --all-targets -- -D warnings"
+
+[tasks.fmt]
+description = "Format code with rustfmt"
+run = "cargo fmt"
+
+[tasks.fmt-check]
+description = "Check formatting without modifying files"
+run = "cargo fmt -- --check"
+
+# --- Testing ---
+
+[tasks.test]
+description = "Run all tests"
+run = "cargo test"
+
+[tasks.test-verbose]
+description = "Run tests with verbose output"
+run = "cargo test -- --nocapture"
+
+# --- Agent Optimized Tasks ---
+
+[tasks.agent-check]
+description = "Run all checks optimized for LLM token limits"
+depends = ["agent-clippy", "fmt-check", "agent-test"]
+
+[tasks.agent-clippy]
+description = "Run clippy lints with compact output for agents"
+run = "cargo clippy --all-targets --message-format=short -- -D warnings"
+
+[tasks.agent-test]
+description = "Run tests with quiet output for agents"
+run = "cargo test -q"

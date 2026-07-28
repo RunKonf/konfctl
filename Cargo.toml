@@ -1,0 +1,53 @@
+[package]
+name = "konfctl"
+version = "0.1.0"
+edition = "2024"
+description = "Konf CLI — run your conference from the terminal. Optimized for humans and LLM agents."
+license = "MIT"
+repository = "https://github.com/RunKonf/konfctl"
+readme = "README.md"
+keywords = ["cli", "conference", "agent", "konf"]
+categories = ["command-line-utilities"]
+
+# The crate/repo is `konfctl`; the installed command is `konf`.
+[[bin]]
+name = "konf"
+path = "src/main.rs"
+
+[lib]
+name = "konfctl"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+console = "0.16"
+dialoguer = { version = "0.12", features = ["fuzzy-select"] }
+dirs = "6"
+indicatif = "0.18"
+open = "5"
+reqwest = { version = "0.13", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+terminal_size = "0.4"
+tiny_http = "0.12"
+tokio = { version = "1", features = ["full"] }
+toml = "1"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio-test = "0.4"
+wiremock = "0.6"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+used_underscore_binding = "allow"
+items_after_statements = "allow"
