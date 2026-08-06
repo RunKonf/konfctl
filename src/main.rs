@@ -213,6 +213,7 @@ fn check_agent_guard(is_agent: bool, command_hint: &str) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
     match cmd {
         AdminCommand::Proposals(cmd) => match cmd {
@@ -306,7 +307,9 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
         AdminCommand::Featured(args) => commands::featured::run(args).await,
         AdminCommand::Schedule(cmd) => match cmd {
             commands::schedule::ScheduleCommand::List(args) => commands::schedule::list(args).await,
-            commands::schedule::ScheduleCommand::Get { id, json } => commands::schedule::get(&id, json).await,
+            commands::schedule::ScheduleCommand::Get { id, json } => {
+                commands::schedule::get(&id, json).await
+            }
             commands::schedule::ScheduleCommand::Promote { id } => {
                 check_agent_guard(is_agent, &format!("admin schedule promote {id}"))?;
                 commands::schedule::promote(&id).await

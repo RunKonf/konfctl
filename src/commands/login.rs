@@ -17,7 +17,7 @@ const CONFERENCES: &[(&str, &str)] = &[
     ),
 ];
 
-pub fn run() -> Result<()> {
+pub fn run(url_arg: Option<String>) -> Result<()> {
     if config::exists() {
         let cfg = config::load()?;
         println!(
@@ -27,22 +27,36 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
-    let items: Vec<&str> = CONFERENCES.iter().map(|(title, _)| *title).collect();
-    let selection = Select::new()
-        .with_prompt("Select conference")
-        .items(&items)
-        .default(0)
-        .interact()?;
+    let (title, url) = if let Some(u) = url_arg {
+        (u.clone(), u)
+    } else {
+        let mut items: Vec<&str> = CONFERENCES.iter().map(|(title, _)| *title).collect();
+        items.push("Custom URL...");
 
-    let (title, url) = CONFERENCES[selection];
+        let selection = Select::new()
+            .with_prompt("Select conference")
+            .items(&items)
+            .default(0)
+            .interact()?;
 
-    let result = auth::browser_login(url)?;
+        if selection < CONFERENCES.len() {
+            let (t, u) = CONFERENCES[selection];
+            (t.to_string(), u.to_string())
+        } else {
+            let custom_url: String = dialoguer::Input::new()
+                .with_prompt("Enter conference URL (e.g., http://localhost:3000)")
+                .interact_text()?;
+            (custom_url.clone(), custom_url)
+        }
+    };
+
+    let result = auth::browser_login(&url)?;
 
     let cfg = Config {
-        api_url: url.to_string(),
+        api_url: url.clone(),
         token: result.token,
         conference_id: result.conference_id.unwrap_or_default(),
-        conference_title: title.to_string(),
+        conference_title: title.clone(),
         name: result.name.clone(),
     };
     config::save(&cfg)?;
