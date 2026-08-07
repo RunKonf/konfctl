@@ -21,7 +21,10 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Authenticate via browser and select a conference
-    Login,
+    Login {
+        /// Optional custom conference API URL to authenticate against
+        url: Option<String>,
+    },
     /// Clear stored credentials
     Logout {
         /// Skip confirmation prompt
@@ -58,6 +61,9 @@ enum AdminCommand {
     Speakers(commands::speakers::SpeakerCommand),
     /// Manage featured content on the front page
     Featured(commands::featured::FeaturedArgs),
+    /// Manage schedules
+    #[command(subcommand)]
+    Schedule(commands::schedule::ScheduleCommand),
     /// Show conference status summary (sponsors, proposals, tickets, targets)
     Status {
         /// Output as JSON
@@ -188,7 +194,7 @@ enum SponsorCommand {
 
 async fn run_command(command: Command, is_agent: bool) -> Result<()> {
     match command {
-        Command::Login => commands::login::run(),
+        Command::Login { url } => commands::login::run(url),
         Command::Logout { yes } => commands::logout::run(yes),
         Command::Status => commands::status::run(),
         Command::AgentInfo { json } => commands::agent_discovery::run_agent_info(json).await,
@@ -207,6 +213,7 @@ fn check_agent_guard(is_agent: bool, command_hint: &str) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
     match cmd {
         AdminCommand::Proposals(cmd) => match cmd {
@@ -298,6 +305,24 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
             }
         },
         AdminCommand::Featured(args) => commands::featured::run(args).await,
+        AdminCommand::Schedule(cmd) => match cmd {
+            commands::schedule::ScheduleCommand::List(args) => commands::schedule::list(args).await,
+            commands::schedule::ScheduleCommand::Get { id, json } => {
+                commands::schedule::get(&id, json).await
+            }
+            commands::schedule::ScheduleCommand::Promote { id } => {
+                check_agent_guard(is_agent, &format!("admin schedule promote {id}"))?;
+                commands::schedule::promote(&id).await
+            }
+            commands::schedule::ScheduleCommand::Delete { id, yes } => {
+                check_agent_guard(is_agent, &format!("admin schedule delete {id}"))?;
+                commands::schedule::delete(&id, yes).await
+            }
+            commands::schedule::ScheduleCommand::Save { payload } => {
+                check_agent_guard(is_agent, "admin schedule save")?;
+                commands::schedule::save(&payload).await
+            }
+        },
         AdminCommand::Status { json } => commands::admin_status::run(json).await,
     }
 }
