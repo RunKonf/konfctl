@@ -13,11 +13,13 @@ pub async fn list(args: ListArgs) -> Result<()> {
         .query("message.listConversations", Some(&serde_json::to_value(&args)?))
         .await?;
         
-    let conversations = res
-        .get("conversations")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
+    let conversations = if let Some(arr) = res.as_array() {
+        arr.clone()
+    } else if let Some(arr) = res.get("conversations").and_then(|v| v.as_array()) {
+        arr.clone()
+    } else {
+        Vec::new()
+    };
 
     if args.json || crate::is_agent() {
         if crate::is_agent() {
