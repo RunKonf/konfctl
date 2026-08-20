@@ -245,8 +245,17 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
         AdminCommand::Sponsors(cmd) => match cmd {
             SponsorCommand::List(args) => commands::sponsors::list(args).await,
             SponsorCommand::Add(args) => commands::sponsors::create(args).await,
-            SponsorCommand::Update(args) => commands::sponsors::update(args).await,
-            SponsorCommand::UpdateContacts(args) => commands::sponsors::update_contacts(args).await,
+            SponsorCommand::Update(args) => {
+                check_agent_guard(is_agent, &format!("admin sponsors update {}", args.id))?;
+                commands::sponsors::update(args).await
+            }
+            SponsorCommand::UpdateContacts(args) => {
+                check_agent_guard(
+                    is_agent,
+                    &format!("admin sponsors update-contacts {}", args.id),
+                )?;
+                commands::sponsors::update_contacts(args).await
+            }
             SponsorCommand::Get { id, json } => commands::sponsors::get(&id, json).await,
             SponsorCommand::History { id, json } => commands::sponsors::history(&id, json).await,
             SponsorCommand::Note(args) => commands::sponsors::add_note(args).await,

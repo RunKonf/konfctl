@@ -347,7 +347,10 @@ pub async fn find_or_create(args: FindOrCreateArgs) -> Result<()> {
 }
 
 pub async fn delete(id: &str, yes: bool) -> Result<()> {
-    if !yes && console::Term::stdout().is_term() {
+    if !yes {
+        if !console::Term::stdout().is_term() {
+            anyhow::bail!("Confirmation required in non-interactive mode. Pass -y to confirm.");
+        }
         let confirmed = dialoguer::Confirm::new()
             .with_prompt(format!("Are you sure you want to delete speaker {id}?"))
             .default(false)

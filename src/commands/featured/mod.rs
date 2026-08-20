@@ -71,7 +71,10 @@ async fn add_speaker(id: &str) -> Result<()> {
 }
 
 async fn remove_speaker(id: &str, yes: bool) -> Result<()> {
-    if !yes && console::Term::stdout().is_term() {
+    if !yes {
+        if !console::Term::stdout().is_term() {
+            anyhow::bail!("Confirmation required in non-interactive mode. Pass -y to confirm.");
+        }
         let confirmed = dialoguer::Confirm::new()
             .with_prompt(format!("Remove speaker {id} from front page?"))
             .default(false)
@@ -106,7 +109,10 @@ async fn add_talk(id: &str) -> Result<()> {
 }
 
 async fn remove_talk(id: &str, yes: bool) -> Result<()> {
-    if !yes && console::Term::stdout().is_term() {
+    if !yes {
+        if !console::Term::stdout().is_term() {
+            anyhow::bail!("Confirmation required in non-interactive mode. Pass -y to confirm.");
+        }
         let confirmed = dialoguer::Confirm::new()
             .with_prompt(format!("Remove talk {id} from front page?"))
             .default(false)
