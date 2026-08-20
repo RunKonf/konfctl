@@ -255,7 +255,12 @@ async fn run_app(
 
                 // Messages
                 for msg in thread.messages.iter().rev() {
-                    let author = msg.author_name.as_deref().unwrap_or("Unknown");
+                    let author = msg.author_name.clone().unwrap_or_else(|| {
+                        thread.participants.iter()
+                            .find(|p| p.id.as_deref() == Some(msg.author_id.as_str()))
+                            .and_then(|p| p.name.clone())
+                            .unwrap_or_else(|| "Unknown".to_string())
+                    });
                     text.push(Line::from(vec![
                         Span::styled(
                             author,
