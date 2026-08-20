@@ -30,10 +30,31 @@ pub async fn list(args: ListArgs) -> Result<()> {
     };
 
     if args.json || crate::is_agent() {
-        if crate::is_agent() {
-            println!("{}", serde_json::to_string(&res)?);
+        let out_value = if args.compact {
+            serde_json::to_value(
+                conversations
+                    .into_iter()
+                    .take(args.limit.unwrap_or(usize::MAX))
+                    .map(|c| {
+                        serde_json::json!({
+                            "id": c.id,
+                            "subject": c.subject,
+                            "counterpart": c.counterpart.as_ref().map(|cp| &cp.name),
+                            "status": c.status,
+                            "unread": c.unread_count,
+                            "proposalId": c.proposal_id,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )?
         } else {
-            println!("{}", serde_json::to_string_pretty(&res)?);
+            res
+        };
+
+        if crate::is_agent() {
+            println!("{}", serde_json::to_string(&out_value)?);
+        } else {
+            println!("{}", serde_json::to_string_pretty(&out_value)?);
         }
         return Ok(());
     }
