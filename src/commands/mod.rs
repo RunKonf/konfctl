@@ -9,6 +9,7 @@ pub mod agents;
 pub mod featured;
 pub mod login;
 pub mod logout;
+pub mod messages;
 pub mod proposals;
 pub mod schedule;
 pub mod speakers;

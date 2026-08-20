@@ -30,6 +30,7 @@ struct TrpcErrorDetail {
     message: String,
 }
 
+#[derive(Clone)]
 pub struct TrpcClient {
     http: reqwest::Client,
     base_url: String,
