@@ -450,11 +450,12 @@ async fn run_app(
                             let id_clone = convo.id.clone();
                             let c = client.clone();
                             let tx = tx.clone();
-                            loading_thread = true;
+                            let view = TABS[tab_index];
+                            loading_list = true;
                             tokio::spawn(async move {
                                 let _ = crate::commands::messages::set_status(&id_clone, new_status).await;
-                                let res = fetch_thread(&c, &id_clone).await;
-                                let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                                let res = fetch_list(&c, view).await;
+                                let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
                             });
                         }
                     }
@@ -465,16 +466,18 @@ async fn run_app(
                             let id_clone = convo.id.clone();
                             let c = client.clone();
                             let tx = tx.clone();
-                            loading_thread = true;
+                            let view = TABS[tab_index];
+                            loading_list = true;
                             tokio::spawn(async move {
                                 let _ = crate::commands::messages::set_archive(&id_clone, unarchive).await;
-                                let res = fetch_thread(&c, &id_clone).await;
-                                let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                                let res = fetch_list(&c, view).await;
+                                let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
                             });
                         }
                     }
                     KeyCode::Right | KeyCode::Tab => {
                         tab_index = (tab_index + 1) % TABS.len();
+                        list_state.select(Some(0));
                         loading_list = true;
                         let view = TABS[tab_index];
                         let c = client.clone();
@@ -485,7 +488,12 @@ async fn run_app(
                         });
                     }
                     KeyCode::Left | KeyCode::BackTab => {
-                        tab_index = (tab_index + TABS.len() - 1) % TABS.len();
+                        tab_index = if tab_index == 0 {
+                            TABS.len() - 1
+                        } else {
+                            tab_index - 1
+                        };
+                        list_state.select(Some(0));
                         loading_list = true;
                         let view = TABS[tab_index];
                         let c = client.clone();
@@ -571,9 +579,12 @@ async fn run_app(
                             Ok(list) => {
                                 conversations = list;
                                 if !conversations.is_empty() {
-                                    list_state.select(Some(0));
-                                    // Load first thread
-                                    let id = conversations[0].id.clone();
+                                    let old_idx = list_state.selected().unwrap_or(0);
+                                    let new_idx = old_idx.min(conversations.len().saturating_sub(1));
+                                    list_state.select(Some(new_idx));
+                                    
+                                    // Load selected thread
+                                    let id = conversations[new_idx].id.clone();
                                     active_thread_id = Some(id.clone());
                                     active_thread_error = None;
                                     thread_scroll = 0;
