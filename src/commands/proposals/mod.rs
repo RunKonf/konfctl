@@ -89,7 +89,10 @@ pub async fn add(args: CreateArgs) -> Result<()> {
 }
 
 pub async fn delete(args: DeleteArgs) -> Result<()> {
-    if !args.yes && console::Term::stdout().is_term() {
+    if !args.yes {
+        if !console::Term::stdout().is_term() {
+            anyhow::bail!("Confirmation required in non-interactive mode. Pass -y to confirm.");
+        }
         let confirmed = dialoguer::Confirm::new()
             .with_prompt(format!(
                 "Are you sure you want to delete proposal {}?",

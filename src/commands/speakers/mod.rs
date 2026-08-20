@@ -347,7 +347,10 @@ pub async fn find_or_create(args: FindOrCreateArgs) -> Result<()> {
 }
 
 pub async fn delete(id: &str, yes: bool) -> Result<()> {
-    if !yes && console::Term::stdout().is_term() {
+    if !yes {
+        if !console::Term::stdout().is_term() {
+            anyhow::bail!("Confirmation required in non-interactive mode. Pass -y to confirm.");
+        }
         let confirmed = dialoguer::Confirm::new()
             .with_prompt(format!("Are you sure you want to delete speaker {id}?"))
             .default(false)
@@ -409,5 +412,19 @@ pub async fn broadcast(subject: Option<&str>, message: Option<&str>, sync: bool)
         }
     }
 
+    Ok(())
+}
+
+pub async fn sync_audience() -> Result<()> {
+    let client = require_client()?;
+    client
+        .mutate::<serde_json::Value>("speaker.admin.syncAudience", &serde_json::json!({}))
+        .await?;
+
+    if crate::is_agent() {
+        println!("{}", serde_json::json!({ "ok": true }));
+    } else {
+        println!("Speaker email audience synced successfully.");
+    }
     Ok(())
 }

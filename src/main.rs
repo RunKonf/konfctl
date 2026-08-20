@@ -177,6 +177,9 @@ enum SponsorCommand {
     DeleteActivity {
         /// Activity ID
         id: String,
+        /// Skip confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
     },
     /// Assign an organizer to a sponsor
     Assign {
@@ -242,8 +245,17 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
         AdminCommand::Sponsors(cmd) => match cmd {
             SponsorCommand::List(args) => commands::sponsors::list(args).await,
             SponsorCommand::Add(args) => commands::sponsors::create(args).await,
-            SponsorCommand::Update(args) => commands::sponsors::update(args).await,
-            SponsorCommand::UpdateContacts(args) => commands::sponsors::update_contacts(args).await,
+            SponsorCommand::Update(args) => {
+                check_agent_guard(is_agent, &format!("admin sponsors update {}", args.id))?;
+                commands::sponsors::update(args).await
+            }
+            SponsorCommand::UpdateContacts(args) => {
+                check_agent_guard(
+                    is_agent,
+                    &format!("admin sponsors update-contacts {}", args.id),
+                )?;
+                commands::sponsors::update_contacts(args).await
+            }
             SponsorCommand::Get { id, json } => commands::sponsors::get(&id, json).await,
             SponsorCommand::History { id, json } => commands::sponsors::history(&id, json).await,
             SponsorCommand::Note(args) => commands::sponsors::add_note(args).await,
@@ -267,9 +279,9 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
             SponsorCommand::SignatureStatus { id } => {
                 commands::sponsors::signature_status(&id).await
             }
-            SponsorCommand::DeleteActivity { id } => {
+            SponsorCommand::DeleteActivity { id, yes } => {
                 check_agent_guard(is_agent, &format!("admin sponsors delete-activity {id}"))?;
-                commands::sponsors::delete_activity(&id).await
+                commands::sponsors::delete_activity(&id, yes).await
             }
             SponsorCommand::Assign { id, speaker_id } => {
                 commands::sponsors::assign(&id, speaker_id.as_deref()).await
@@ -302,6 +314,9 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
             }
             commands::speakers::SpeakerCommand::FindOrCreate(args) => {
                 commands::speakers::find_or_create(args).await
+            }
+            commands::speakers::SpeakerCommand::SyncAudience => {
+                commands::speakers::sync_audience().await
             }
         },
         AdminCommand::Featured(args) => commands::featured::run(args).await,

@@ -398,7 +398,7 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
                                 ))
                                 .interact()?
                             {
-                                super::delete_activity(&activity.id).await?;
+                                super::delete_activity(&activity.id, true).await?;
                             }
                         }
                         break;

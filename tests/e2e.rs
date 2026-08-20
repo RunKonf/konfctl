@@ -510,7 +510,7 @@ async fn sponsors_delete_activity_e2e() {
         std::env::set_var("KONF_CONFIG", config_path);
     }
 
-    let result = sponsors::delete_activity("act-123").await;
+    let result = sponsors::delete_activity("act-123", true).await;
     assert!(result.is_ok());
 }
 
