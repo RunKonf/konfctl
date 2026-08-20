@@ -2,8 +2,13 @@ mod args;
 pub use args::*;
 
 use anyhow::Result;
+use colored::Colorize;
 
 use super::require_client;
+// noop
+use crate::types::{ConversationRow, GetConversationResult};
+
+mod interactive;
 
 pub async fn list(args: ListArgs) -> Result<()> {
     let client = require_client()?;
@@ -13,10 +18,10 @@ pub async fn list(args: ListArgs) -> Result<()> {
         .query("message.listConversations", Some(&serde_json::to_value(&args)?))
         .await?;
         
-    let conversations = if let Some(arr) = res.as_array() {
-        arr.clone()
+    let conversations: Vec<ConversationRow> = if let Some(arr) = res.as_array() {
+        serde_json::from_value(serde_json::Value::Array(arr.clone()))?
     } else if let Some(arr) = res.get("conversations").and_then(|v| v.as_array()) {
-        arr.clone()
+        serde_json::from_value(serde_json::Value::Array(arr.clone()))?
     } else {
         Vec::new()
     };
@@ -35,11 +40,20 @@ pub async fn list(args: ListArgs) -> Result<()> {
         return Ok(());
     }
 
-    // TODO: implement a nice table view for conversations
-    println!("{}", serde_json::to_string_pretty(&conversations)?);
-
-    if let Some(cursor) = res.get("nextCursor").and_then(|v| v.as_str()) {
-        println!("\nNext cursor: {}", cursor);
+    if !console::Term::stdout().is_term() {
+        // Just print the rows non-interactively
+        println!(
+            "{:<25} | {:<50} | {:<20} | {}",
+            "ID".bold().cyan(),
+            "SUBJECT".bold().cyan(),
+            "COUNTERPART".bold().cyan(),
+            "STATUS".bold().cyan()
+        );
+        for convo in &conversations {
+            println!("{}", interactive::format_item(convo));
+        }
+    } else {
+        interactive::run(&client, conversations).await?;
     }
 
     Ok(())
@@ -47,17 +61,17 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
 pub async fn get(id: &str, json: bool) -> Result<()> {
     let client = require_client()?;
-    let convo: serde_json::Value = client
+    let convo: GetConversationResult = client
         .query("message.getConversation", Some(&serde_json::json!({ "id": id })))
         .await?;
         
-    let messages: serde_json::Value = client
+    let messages: Vec<crate::types::ConversationMessage> = client
         .query("message.listMessages", Some(&serde_json::json!({ "conversationId": id })))
         .await?;
 
     if json || crate::is_agent() {
-        let mut out = convo;
-        out["messages"] = messages;
+        let mut out = serde_json::to_value(&convo)?;
+        out["messages"] = serde_json::to_value(&messages)?;
         if crate::is_agent() {
             println!("{}", serde_json::to_string(&out)?);
         } else {
@@ -66,9 +80,21 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    // TODO: implement a nice thread view
-    println!("{}", serde_json::to_string_pretty(&convo)?);
-    println!("{}", serde_json::to_string_pretty(&messages)?);
+    println!("{} {}\n{}", "Thread:".bold().cyan(), convo.conversation.subject.as_deref().unwrap_or("No subject").bold(), format!("ID: {}", convo.conversation.id).dimmed());
+
+    println!("{}", "Participants:".bold().cyan());
+    for p in &convo.participants {
+        println!("  - {} {}", p.name.as_deref().unwrap_or("Unknown"), if p.is_organizer { "(Organizer)".dimmed() } else { "".dimmed() });
+    }
+    
+    println!("\n{}\n", "Messages:".bold().cyan());
+    for msg in messages.iter().rev() {
+        let author = msg.author_name.as_deref().unwrap_or("Unknown");
+        let date = msg.created_at.as_str(); 
+        println!("{} [{}]", author.bold().blue(), date.dimmed());
+        println!("{}\n", msg.body);
+    }
+    
     Ok(())
 }
 

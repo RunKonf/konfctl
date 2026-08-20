@@ -1,5 +1,6 @@
 mod agent_config;
 pub mod email_template;
+pub mod message;
 pub mod proposal;
 pub mod schedule;
 pub mod speaker;
@@ -8,6 +9,7 @@ pub mod status;
 
 pub use agent_config::*;
 pub use email_template::*;
+pub use message::*;
 pub use proposal::*;
 pub use schedule::ScheduleStatus;
 pub use schedule::*;
