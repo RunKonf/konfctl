@@ -330,7 +330,7 @@ async fn run_app(
             
             // FOOTER: Global Hints
             let hints = Span::styled(
-                " [q/Esc] Quit   [Tab/Shift+Tab] Switch View   [↑/↓] Navigate   [PgUp/PgDn] Scroll   [n] New   [r] Reply   [s] Status   [a] Archive ", 
+                " [q/Esc] Quit   [Tab/S+Tab] Switch View   [↑/↓] Navigate   [PgUp/Dn|Shift+↕|[/]] Scroll   [n] New   [r] Reply   [s] Status   [a] Archive ", 
                 Style::default().fg(Color::DarkGray).bg(Color::Black)
             );
             f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
@@ -495,36 +495,10 @@ async fn run_app(
                             let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
                         });
                     }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        if !conversations.is_empty() {
-                            let i = match list_state.selected() {
-                                Some(i) => {
-                                    if i >= conversations.len() - 1 {
-                                        0
-                                    } else {
-                                        i + 1
-                                    }
-                                }
-                                None => 0,
-                            };
-                            list_state.select(Some(i));
-
-                            // Load thread
-                            let id = conversations[i].id.clone();
-                            active_thread_id = Some(id.clone());
-                            active_thread_error = None;
-                            thread_scroll = 0;
-                            loading_thread = true;
-                            let c = client.clone();
-                            let tx = tx.clone();
-                            tokio::spawn(async move {
-                                let res = fetch_thread(&c, &id).await;
-                                let _ = tx.send(AppEvent::ThreadLoaded(id, res));
-                            });
-                        }
-                    }
                     KeyCode::Up | KeyCode::Char('k') => {
-                        if !conversations.is_empty() {
+                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                            thread_scroll = thread_scroll.saturating_sub(5);
+                        } else if !conversations.is_empty() {
                             let i = match list_state.selected() {
                                 Some(i) => {
                                     if i == 0 {
@@ -551,10 +525,40 @@ async fn run_app(
                             });
                         }
                     }
-                    KeyCode::PageDown => {
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                            thread_scroll = thread_scroll.saturating_add(5);
+                        } else if !conversations.is_empty() {
+                            let i = match list_state.selected() {
+                                Some(i) => {
+                                    if i >= conversations.len() - 1 {
+                                        0
+                                    } else {
+                                        i + 1
+                                    }
+                                }
+                                None => 0,
+                            };
+                            list_state.select(Some(i));
+
+                            // Load thread
+                            let id = conversations[i].id.clone();
+                            active_thread_id = Some(id.clone());
+                            active_thread_error = None;
+                            thread_scroll = 0;
+                            loading_thread = true;
+                            let c = client.clone();
+                            let tx = tx.clone();
+                            tokio::spawn(async move {
+                                let res = fetch_thread(&c, &id).await;
+                                let _ = tx.send(AppEvent::ThreadLoaded(id, res));
+                            });
+                        }
+                    }
+                    KeyCode::PageDown | KeyCode::Char(']') => {
                         thread_scroll = thread_scroll.saturating_add(5);
                     }
-                    KeyCode::PageUp => {
+                    KeyCode::PageUp | KeyCode::Char('[') => {
                         thread_scroll = thread_scroll.saturating_sub(5);
                     }
                     _ => {}
