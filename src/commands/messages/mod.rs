@@ -1,4 +1,10 @@
-#![allow(clippy::if_not_else, clippy::collapsible_else_if, clippy::uninlined_format_args, clippy::nonminimal_bool, clippy::needless_bool)]
+#![allow(
+    clippy::if_not_else,
+    clippy::collapsible_else_if,
+    clippy::uninlined_format_args,
+    clippy::nonminimal_bool,
+    clippy::needless_bool
+)]
 mod args;
 pub use args::*;
 
@@ -21,7 +27,7 @@ pub async fn list(args: ListArgs) -> Result<()> {
             Some(&serde_json::to_value(&args)?),
         )
         .await?;
-        
+
     if args.json && !crate::is_agent() {
         println!("{}", serde_json::to_string_pretty(&res)?);
         return Ok(());
