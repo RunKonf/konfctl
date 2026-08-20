@@ -86,6 +86,8 @@ async fn run_app(
     let mut active_thread: Option<GetConversationResult> = None;
     let mut active_thread_id: Option<String> = None;
 
+    let mut active_thread_error: Option<String> = None;
+
     // Load initial thread if available
     if let Some(first) = conversations.first() {
         active_thread_id = Some(first.id.clone());
@@ -248,6 +250,13 @@ async fn run_app(
                     .block(right_block)
                     .wrap(Wrap { trim: false });
                 f.render_widget(p, bottom_chunks[1]);
+            } else if let Some(e) = &active_thread_error {
+                let p = Paragraph::new(Text::from(vec![
+                    Line::from(Span::styled("Failed to load thread:", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))),
+                    Line::from(""),
+                    Line::from(Span::styled(e, Style::default().fg(Color::Red)))
+                ])).block(right_block).wrap(Wrap { trim: false });
+                f.render_widget(p, bottom_chunks[1]);
             } else {
                 let p = Paragraph::new("Select a conversation...").block(right_block);
                 f.render_widget(p, bottom_chunks[1]);
@@ -297,6 +306,7 @@ async fn run_app(
                             // Load thread
                             let id = conversations[i].id.clone();
                             active_thread_id = Some(id.clone());
+                            active_thread_error = None;
                             loading_thread = true;
                             let c = client.clone();
                             let tx = tx.clone();
@@ -323,6 +333,7 @@ async fn run_app(
                             // Load thread
                             let id = conversations[i].id.clone();
                             active_thread_id = Some(id.clone());
+                            active_thread_error = None;
                             loading_thread = true;
                             let c = client.clone();
                             let tx = tx.clone();
@@ -345,6 +356,7 @@ async fn run_app(
                                     // Load first thread
                                     let id = conversations[0].id.clone();
                                     active_thread_id = Some(id.clone());
+                                    active_thread_error = None;
                                     loading_thread = true;
                                     let c = client.clone();
                                     let tx = tx.clone();
@@ -368,10 +380,15 @@ async fn run_app(
                 AppEvent::ThreadLoaded(id, res) => {
                     if Some(id) == active_thread_id {
                         loading_thread = false;
-                        if let Ok(thread) = res {
-                            active_thread = Some(thread);
-                        } else {
-                            active_thread = None;
+                        match res {
+                            Ok(thread) => {
+                                active_thread = Some(thread);
+                                active_thread_error = None;
+                            }
+                            Err(e) => {
+                                active_thread = None;
+                                active_thread_error = Some(e.to_string());
+                            }
                         }
                     }
                 }
