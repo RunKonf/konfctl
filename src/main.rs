@@ -342,16 +342,22 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                     )?;
                     commands::messages::start_new(&speaker, &subject, &message).await
                 }
-                MessageCommand::Status { id, status } => {
-                    check_agent_guard(is_agent, &format!("admin messages status {}", id))?;
+                MessageCommand::Status { id, status, yes } => {
+                    if is_agent && !yes {
+                        anyhow::bail!("Agent must pass -y/--yes to confirm mutating thread status.");
+                    }
                     commands::messages::set_status(&id, status).await
                 }
-                MessageCommand::Assign { id, to } => {
-                    check_agent_guard(is_agent, &format!("admin messages assign {}", id))?;
+                MessageCommand::Assign { id, to, yes } => {
+                    if is_agent && !yes {
+                        anyhow::bail!("Agent must pass -y/--yes to confirm reassigning thread.");
+                    }
                     commands::messages::set_assignee(&id, to.as_deref()).await
                 }
-                MessageCommand::Archive { id, unarchive } => {
-                    check_agent_guard(is_agent, &format!("admin messages archive {}", id))?;
+                MessageCommand::Archive { id, unarchive, yes } => {
+                    if is_agent && !yes {
+                        anyhow::bail!("Agent must pass -y/--yes to confirm archiving thread.");
+                    }
                     commands::messages::set_archive(&id, unarchive).await
                 }
             }

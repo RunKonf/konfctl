@@ -55,6 +55,10 @@ pub enum MessageCommand {
         /// New status
         #[arg(value_enum)]
         status: ConversationStatusEnum,
+
+        /// Confirm action
+        #[arg(long, short = 'y')]
+        yes: bool,
     },
 
     /// Assign a conversation to an organizer (omit --to to unassign)
@@ -65,6 +69,10 @@ pub enum MessageCommand {
         /// Organizer/Speaker ID to assign to
         #[arg(long)]
         to: Option<String>,
+
+        /// Confirm action
+        #[arg(long, short = 'y')]
+        yes: bool,
     },
 
     /// Toggle the global archive state of a conversation
@@ -75,6 +83,10 @@ pub enum MessageCommand {
         /// Set to unarchive
         #[arg(long)]
         unarchive: bool,
+
+        /// Confirm action
+        #[arg(long, short = 'y')]
+        yes: bool,
     },
 }
 
