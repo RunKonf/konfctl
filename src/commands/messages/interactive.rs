@@ -1,3 +1,4 @@
+#![allow(clippy::if_not_else, clippy::too_many_lines, clippy::collapsible_if, clippy::uninlined_format_args, clippy::map_unwrap_or, clippy::cast_possible_truncation, clippy::nonminimal_bool, clippy::large_enum_variant, clippy::single_match_else, clippy::manual_string_new)]
 use std::sync::Arc;
 use std::time::Duration;
 

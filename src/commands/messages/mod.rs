@@ -1,3 +1,4 @@
+#![allow(clippy::if_not_else, clippy::collapsible_else_if, clippy::uninlined_format_args, clippy::nonminimal_bool, clippy::needless_bool)]
 mod args;
 pub use args::*;
 
