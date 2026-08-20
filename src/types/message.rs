@@ -77,6 +77,7 @@ pub struct ConversationDetail {
     #[serde(rename = "_id")]
     pub id: String,
     pub subject: Option<String>,
+    pub proposal_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

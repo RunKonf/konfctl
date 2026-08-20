@@ -24,7 +24,7 @@ use crate::types::{ConversationRow, GetConversationResult};
 enum AppEvent {
     Input(event::KeyEvent),
     Tick,
-    ThreadLoaded(String, Result<GetConversationResult>),
+    ThreadLoaded(String, Result<(GetConversationResult, Option<crate::types::Proposal>)>),
     ConversationsLoaded(InboxView, Result<Vec<ConversationRow>>),
 }
 
@@ -83,7 +83,7 @@ async fn run_app(
 
     let mut loading_list = false;
     let mut loading_thread = false;
-    let mut active_thread: Option<GetConversationResult> = None;
+    let mut active_thread: Option<(GetConversationResult, Option<crate::types::Proposal>)> = None;
     let mut active_thread_id: Option<String> = None;
 
     let mut active_thread_error: Option<String> = None;
@@ -191,7 +191,7 @@ async fn run_app(
 
             let right_block = Block::default().borders(Borders::ALL).title(thread_title);
 
-            if let Some(thread) = &active_thread {
+            if let Some((thread, proposal)) = &active_thread {
                 let mut text = vec![];
 
                 // Subject header
@@ -210,6 +210,16 @@ async fn run_app(
                     Style::default().fg(Color::DarkGray),
                 )));
                 text.push(Line::from(""));
+
+                // Proposal info if any
+                if let Some(p) = proposal {
+                    text.push(Line::from(vec![
+                        Span::styled("Proposal: ", Style::default().fg(Color::Magenta)),
+                        Span::raw(&p.title),
+                        Span::styled(format!(" [{:?}]", p.status), Style::default().fg(Color::Yellow)),
+                    ]));
+                    text.push(Line::from(""));
+                }
 
                 // Participants
                 let mut p_str = String::new();
@@ -246,6 +256,10 @@ async fn run_app(
                     text.push(Line::from(""));
                 }
 
+                // Keybinds at bottom
+                text.push(Line::from("─".repeat(bottom_chunks[1].width as usize - 2)));
+                text.push(Line::from(Span::styled("Press 'r' to reply", Style::default().fg(Color::DarkGray))));
+
                 let p = Paragraph::new(Text::from(text))
                     .block(right_block)
                     .wrap(Wrap { trim: false });
@@ -267,6 +281,42 @@ async fn run_app(
             match event {
                 AppEvent::Input(key) => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('r') => {
+                        if let Some(id) = &active_thread_id {
+                            let _ = disable_raw_mode();
+                            let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+                            
+                            println!("Replying to thread: {}", id);
+                            let reply_opt = dialoguer::Editor::new()
+                                .require_save(false)
+                                .edit("")
+                                .unwrap_or(None);
+                                
+                            let _ = enable_raw_mode();
+                            let _ = execute!(terminal.backend_mut(), EnterAlternateScreen);
+                            let _ = terminal.clear();
+                            
+                            if let Some(text) = reply_opt {
+                                if !text.trim().is_empty() {
+                                    loading_thread = true;
+                                    let c = client.clone();
+                                    let id_clone = id.clone();
+                                    let tx = tx.clone();
+                                    tokio::spawn(async move {
+                                        let _ = c.mutate::<serde_json::Value>(
+                                            "message.send",
+                                            &serde_json::json!({
+                                                "conversationId": id_clone,
+                                                "body": text,
+                                            }),
+                                        ).await;
+                                        let res = fetch_thread(&c, &id_clone).await;
+                                        let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                                    });
+                                }
+                            }
+                        }
+                    }
                     KeyCode::Right | KeyCode::Tab => {
                         tab_index = (tab_index + 1) % TABS.len();
                         loading_list = true;
@@ -423,26 +473,26 @@ async fn fetch_list(client: &TrpcClient, view: InboxView) -> Result<Vec<Conversa
     }
 }
 
-async fn fetch_thread(client: &TrpcClient, id: &str) -> Result<GetConversationResult> {
+async fn fetch_thread(client: &TrpcClient, id: &str) -> Result<(GetConversationResult, Option<crate::types::Proposal>)> {
     let convo: GetConversationResult = client
-        .query(
-            "message.getConversation",
-            Some(&serde_json::json!({ "id": id })),
-        )
+        .query("message.getConversation", Some(&serde_json::json!({ "id": id })))
         .await?;
-
+        
     let messages: Vec<crate::types::ConversationMessage> = client
-        .query(
-            "message.listMessages",
-            Some(&serde_json::json!({ "conversationId": id })),
-        )
+        .query("message.listMessages", Some(&serde_json::json!({ "conversationId": id })))
         .await?;
 
-    // Quick hack to inject messages since we already queried them
-    // Wait, the API returns GetConversationResult. Let's construct it manually.
     let mut c = convo;
     c.messages = messages;
-    Ok(c)
+    
+    let mut proposal = None;
+    if let Some(pid) = &c.conversation.proposal_id {
+        if let Ok(p) = client.query::<crate::types::Proposal>("proposal.admin.getById", Some(&serde_json::json!({ "id": pid }))).await {
+            proposal = Some(p);
+        }
+    }
+    
+    Ok((c, proposal))
 }
 
 // We still keep the format_item if used elsewhere
