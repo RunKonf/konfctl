@@ -328,7 +328,7 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                 MessageCommand::List(list_args) => commands::messages::list(list_args).await,
                 MessageCommand::Get { id, json } => commands::messages::get(&id, json).await,
                 MessageCommand::Reply { id, message } => {
-                    check_agent_guard(is_agent, &format!("admin messages reply {}", id))?;
+                    check_agent_guard(is_agent, &format!("admin messages reply {id}"))?;
                     commands::messages::reply(&id, &message).await
                 }
                 MessageCommand::New {
@@ -338,7 +338,7 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                 } => {
                     check_agent_guard(
                         is_agent,
-                        &format!("admin messages new --speaker {}", speaker),
+                        &format!("admin messages new --speaker {speaker}"),
                     )?;
                     commands::messages::start_new(&speaker, &subject, &message).await
                 }
