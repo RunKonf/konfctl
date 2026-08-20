@@ -344,7 +344,9 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                 }
                 MessageCommand::Status { id, status, yes } => {
                     if is_agent && !yes {
-                        anyhow::bail!("Agent must pass -y/--yes to confirm mutating thread status.");
+                        anyhow::bail!(
+                            "Agent must pass -y/--yes to confirm mutating thread status."
+                        );
                     }
                     commands::messages::set_status(&id, status).await
                 }
