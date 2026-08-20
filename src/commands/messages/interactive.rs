@@ -92,6 +92,9 @@ async fn run_app(
     let mut thread_scroll: u16 = 0;
 
     let mut active_thread_error: Option<String> = None;
+    
+    let mut composing_reply = false;
+    let mut reply_buffer = String::new();
 
     // Load initial thread if available
     if let Some(first) = conversations.first() {
@@ -193,6 +196,18 @@ async fn run_app(
                 " Thread ".to_string()
             };
 
+            let right_chunks = if composing_reply {
+                Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
+                    .split(bottom_chunks[1])
+            } else {
+                Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Min(0)].as_ref())
+                    .split(bottom_chunks[1])
+            };
+
             let right_block = Block::default().borders(Borders::ALL).title(thread_title);
 
             if let Some((thread, proposal)) = &active_thread {
@@ -268,17 +283,31 @@ async fn run_app(
                     .block(right_block)
                     .wrap(Wrap { trim: false })
                     .scroll((thread_scroll, 0));
-                f.render_widget(p, bottom_chunks[1]);
+                f.render_widget(p, right_chunks[0]);
             } else if let Some(e) = &active_thread_error {
                 let p = Paragraph::new(Text::from(vec![
                     Line::from(Span::styled("Failed to load thread:", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))),
                     Line::from(""),
                     Line::from(Span::styled(e, Style::default().fg(Color::Red)))
                 ])).block(right_block).wrap(Wrap { trim: false });
-                f.render_widget(p, bottom_chunks[1]);
+                f.render_widget(p, right_chunks[0]);
             } else {
                 let p = Paragraph::new("Select a conversation...").block(right_block);
-                f.render_widget(p, bottom_chunks[1]);
+                f.render_widget(p, right_chunks[0]);
+            }
+            
+            if composing_reply {
+                let reply_text = vec![
+                    Line::from(vec![
+                        Span::styled("> ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw(&reply_buffer),
+                        Span::styled("█", Style::default().fg(Color::White)),
+                    ]),
+                ];
+                let p = Paragraph::new(Text::from(reply_text))
+                    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Yellow)).title(" Type Reply (Enter to send, Esc to cancel) "))
+                    .wrap(Wrap { trim: false });
+                f.render_widget(p, right_chunks[1]);
             }
             
             // FOOTER: Global Hints
@@ -291,44 +320,56 @@ async fn run_app(
 
         if let Some(event) = rx.recv().await {
             match event {
-                AppEvent::Input(key) => match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                    KeyCode::Char('r') => {
-                        if let Some(id) = &active_thread_id {
-                            let _ = disable_raw_mode();
-                            let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
-                            
-                            println!("Replying to thread: {}", id);
-                            let reply_opt = dialoguer::Editor::new()
-                                .require_save(false)
-                                .edit("")
-                                .unwrap_or(None);
-                                
-                            let _ = enable_raw_mode();
-                            let _ = execute!(terminal.backend_mut(), EnterAlternateScreen);
-                            let _ = terminal.clear();
-                            
-                            if let Some(text) = reply_opt {
-                                if !text.trim().is_empty() {
-                                    loading_thread = true;
-                                    let c = client.clone();
-                                    let id_clone = id.clone();
-                                    let tx = tx.clone();
-                                    tokio::spawn(async move {
-                                        let _ = c.mutate::<serde_json::Value>(
-                                            "message.send",
-                                            &serde_json::json!({
-                                                "conversationId": id_clone,
-                                                "body": text,
-                                            }),
-                                        ).await;
-                                        let res = fetch_thread(&c, &id_clone).await;
-                                        let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
-                                    });
+                AppEvent::Input(key) => {
+                    if composing_reply {
+                        match key.code {
+                            KeyCode::Esc => {
+                                composing_reply = false;
+                                reply_buffer.clear();
+                            }
+                            KeyCode::Enter => {
+                                if !reply_buffer.trim().is_empty() {
+                                    if let Some(id) = &active_thread_id {
+                                        loading_thread = true;
+                                        let c = client.clone();
+                                        let id_clone = id.clone();
+                                        let text = reply_buffer.clone();
+                                        let tx = tx.clone();
+                                        tokio::spawn(async move {
+                                            let _ = c.mutate::<serde_json::Value>(
+                                                "message.send",
+                                                &serde_json::json!({
+                                                    "conversationId": id_clone,
+                                                    "body": text,
+                                                }),
+                                            ).await;
+                                            let res = fetch_thread(&c, &id_clone).await;
+                                            let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                                        });
+                                    }
                                 }
+                                composing_reply = false;
+                                reply_buffer.clear();
+                            }
+                            KeyCode::Backspace => {
+                                reply_buffer.pop();
+                            }
+                            KeyCode::Char(c) => {
+                                reply_buffer.push(c);
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
+
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                        KeyCode::Char('r') => {
+                            if active_thread_id.is_some() {
+                                composing_reply = true;
+                                reply_buffer.clear();
                             }
                         }
-                    }
                     KeyCode::Char('s') => {
                         if let Some(i) = list_state.selected() {
                             let convo = &conversations[i];
@@ -448,6 +489,7 @@ async fn run_app(
                         thread_scroll = thread_scroll.saturating_sub(5);
                     }
                     _ => {}
+                    }
                 },
                 AppEvent::ConversationsLoaded(view, res) => {
                     if TABS[tab_index] == view {
