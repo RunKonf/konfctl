@@ -330,7 +330,7 @@ async fn run_app(
             
             // FOOTER: Global Hints
             let hints = Span::styled(
-                " [q/Esc] Quit   [Tab/Shift+Tab] Switch View   [↑/↓] Navigate   [PgUp/PgDn] Scroll Thread   [r] Reply   [s] Status   [a] Archive ", 
+                " [q/Esc] Quit   [Tab/Shift+Tab] Switch View   [↑/↓] Navigate   [PgUp/PgDn] Scroll   [n] New   [r] Reply   [s] Status   [a] Archive ", 
                 Style::default().fg(Color::DarkGray).bg(Color::Black)
             );
             f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
@@ -390,6 +390,49 @@ async fn run_app(
 
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                        KeyCode::Char('n') => {
+                            let _ = disable_raw_mode();
+                            let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+                            
+                            let mut success = false;
+                            
+                            if let Ok(speakers) = crate::commands::speakers::fetch_all(&client).await {
+                                let items: Vec<String> = speakers.iter().map(|s| format!("{} ({})", s.name, s.email.as_deref().unwrap_or(""))).collect();
+                                
+                                if let Ok(Some(idx)) = dialoguer::FuzzySelect::new()
+                                    .with_prompt("Select speaker")
+                                    .items(&items)
+                                    .interact_opt() 
+                                {
+                                    let speaker_id = &speakers[idx].id;
+                                    
+                                    if let Ok(subject) = dialoguer::Input::<String>::new().with_prompt("Subject").interact() {
+                                        if let Ok(Some(msg)) = dialoguer::Editor::new().require_save(false).edit("Type your message here...") {
+                                            if !msg.trim().is_empty() {
+                                                let _ = crate::commands::messages::start_new(speaker_id, &subject, &msg).await;
+                                                success = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            let _ = enable_raw_mode();
+                            let _ = execute!(terminal.backend_mut(), EnterAlternateScreen);
+                            let _ = terminal.clear();
+                            
+                            if success {
+                                // Refresh list!
+                                loading_list = true;
+                                let view = TABS[tab_index];
+                                let c = client.clone();
+                                let tx = tx.clone();
+                                tokio::spawn(async move {
+                                    let res = fetch_list(&c, view).await;
+                                    let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
+                                });
+                            }
+                        }
                         KeyCode::Char('r') => {
                             if active_thread_id.is_some() {
                                 composing_reply = true;
