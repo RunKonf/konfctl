@@ -17,12 +17,21 @@ pub struct ConversationLastMessage {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ConversationAssignee {
+    #[serde(rename = "_id")]
+    pub id: Option<String>,
+    pub name: String,
+    pub image: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationRow {
     #[serde(rename = "_id")]
     pub id: String,
     #[serde(default)]
     pub archived: bool,
-    pub assigned_to: Option<String>,
+    pub assigned_to: Option<ConversationAssignee>,
     pub conversation_type: String,
     pub counterpart: Option<ConversationCounterpart>,
     pub created_at: String,

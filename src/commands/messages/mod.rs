@@ -20,6 +20,11 @@ pub async fn list(args: ListArgs) -> Result<()> {
             Some(&serde_json::to_value(&args)?),
         )
         .await?;
+        
+    if args.json && !crate::is_agent() {
+        println!("{}", serde_json::to_string_pretty(&res)?);
+        return Ok(());
+    }
 
     let conversations: Vec<ConversationRow> = if let Some(arr) = res.as_array() {
         serde_json::from_value(serde_json::Value::Array(arr.clone()))?
