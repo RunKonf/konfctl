@@ -1,4 +1,15 @@
-#![allow(clippy::if_not_else, clippy::too_many_lines, clippy::collapsible_if, clippy::uninlined_format_args, clippy::map_unwrap_or, clippy::cast_possible_truncation, clippy::nonminimal_bool, clippy::large_enum_variant, clippy::single_match_else, clippy::manual_string_new)]
+#![allow(
+    clippy::if_not_else,
+    clippy::too_many_lines,
+    clippy::collapsible_if,
+    clippy::uninlined_format_args,
+    clippy::map_unwrap_or,
+    clippy::cast_possible_truncation,
+    clippy::nonminimal_bool,
+    clippy::large_enum_variant,
+    clippy::single_match_else,
+    clippy::manual_string_new
+)]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,7 +36,10 @@ use crate::types::{ConversationRow, GetConversationResult};
 enum AppEvent {
     Input(event::KeyEvent),
     Tick,
-    ThreadLoaded(String, Result<(GetConversationResult, Option<crate::types::Proposal>)>),
+    ThreadLoaded(
+        String,
+        Result<(GetConversationResult, Option<crate::types::Proposal>)>,
+    ),
     ConversationsLoaded(InboxView, Result<Vec<ConversationRow>>),
 }
 
@@ -93,7 +107,7 @@ async fn run_app(
     let mut thread_scroll: u16 = 0;
 
     let mut active_thread_error: Option<String> = None;
-    
+
     let mut composing_reply = false;
     let mut confirm_send = false;
     let mut reply_buffer = String::new();
@@ -120,8 +134,8 @@ async fn run_app(
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(3), 
-                    Constraint::Min(0), 
+                    Constraint::Length(3),
+                    Constraint::Min(0),
                     Constraint::Length(1)
                 ].as_ref())
                 .split(size);
@@ -129,7 +143,7 @@ async fn run_app(
             let tab_titles: Vec<Line> = TABS.iter().map(|t| {
                 Line::from(format!("{:?}", t))
             }).collect();
-            
+
             let tabs = Tabs::new(tab_titles)
                 .block(Block::default().borders(Borders::ALL).title(" Inbox Tabs "))
                 .select(tab_index)
@@ -303,7 +317,7 @@ async fn run_app(
                 let p = Paragraph::new("Select a conversation...").block(right_block);
                 f.render_widget(p, right_chunks[0]);
             }
-            
+
             if composing_reply {
                 let reply_text = vec![
                     Line::from(vec![
@@ -329,10 +343,10 @@ async fn run_app(
                     .scroll((reply_scroll, 0));
                 f.render_widget(p, right_chunks[1]);
             }
-            
+
             // FOOTER: Global Hints
             let hints = Span::styled(
-                " [q/Esc] Quit   [Tab/S+Tab] Switch View   [↑/↓] Navigate   [PgUp/Dn|Shift+↕|[/]] Scroll   [n] New   [r] Reply   [s] Status   [a] Archive ", 
+                " [q/Esc] Quit   [Tab/S+Tab] Switch View   [↑/↓] Navigate   [PgUp/Dn|Shift+↕|[/]] Scroll   [n] New   [r] Reply   [s] Status   [a] Archive ",
                 Style::default().fg(Color::DarkGray).bg(Color::Black)
             );
             f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
@@ -360,15 +374,18 @@ async fn run_app(
                                             let text = reply_buffer.clone();
                                             let tx = tx.clone();
                                             tokio::spawn(async move {
-                                                let _ = c.mutate::<serde_json::Value>(
-                                                    "message.send",
-                                                    &serde_json::json!({
-                                                        "conversationId": id_clone,
-                                                        "body": text,
-                                                    }),
-                                                ).await;
+                                                let _ = c
+                                                    .mutate::<serde_json::Value>(
+                                                        "message.send",
+                                                        &serde_json::json!({
+                                                            "conversationId": id_clone,
+                                                            "body": text,
+                                                        }),
+                                                    )
+                                                    .await;
                                                 let res = fetch_thread(&c, &id_clone).await;
-                                                let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                                                let _ =
+                                                    tx.send(AppEvent::ThreadLoaded(id_clone, res));
                                             });
                                         }
                                         composing_reply = false;
@@ -395,34 +412,50 @@ async fn run_app(
                         KeyCode::Char('n') => {
                             let _ = disable_raw_mode();
                             let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
-                            
+
                             let mut success = false;
-                            
-                            if let Ok(speakers) = crate::commands::speakers::fetch_all(&client).await {
-                                let items: Vec<String> = speakers.iter().map(|s| format!("{} ({})", s.name, s.email.as_deref().unwrap_or(""))).collect();
-                                
+
+                            if let Ok(speakers) =
+                                crate::commands::speakers::fetch_all(&client).await
+                            {
+                                let items: Vec<String> = speakers
+                                    .iter()
+                                    .map(|s| {
+                                        format!("{} ({})", s.name, s.email.as_deref().unwrap_or(""))
+                                    })
+                                    .collect();
+
                                 if let Ok(Some(idx)) = dialoguer::FuzzySelect::new()
                                     .with_prompt("Select speaker")
                                     .items(&items)
-                                    .interact_opt() 
+                                    .interact_opt()
                                 {
                                     let speaker_id = &speakers[idx].id;
-                                    
-                                    if let Ok(subject) = dialoguer::Input::<String>::new().with_prompt("Subject").interact() {
-                                        if let Ok(Some(msg)) = dialoguer::Editor::new().require_save(false).edit("Type your message here...") {
+
+                                    if let Ok(subject) = dialoguer::Input::<String>::new()
+                                        .with_prompt("Subject")
+                                        .interact()
+                                    {
+                                        if let Ok(Some(msg)) = dialoguer::Editor::new()
+                                            .require_save(false)
+                                            .edit("Type your message here...")
+                                        {
                                             if !msg.trim().is_empty() {
-                                                let _ = crate::commands::messages::start_new(speaker_id, &subject, &msg).await;
+                                                let _ = crate::commands::messages::start_new(
+                                                    speaker_id, &subject, &msg,
+                                                )
+                                                .await;
                                                 success = true;
                                             }
                                         }
                                     }
                                 }
                             }
-                            
+
                             let _ = enable_raw_mode();
                             let _ = execute!(terminal.backend_mut(), EnterAlternateScreen);
                             let _ = terminal.clear();
-                            
+
                             if success {
                                 // Refresh list!
                                 loading_list = true;
@@ -441,139 +474,145 @@ async fn run_app(
                                 reply_buffer.clear();
                             }
                         }
-                    KeyCode::Char('s') => {
-                        if let Some(i) = list_state.selected() {
-                            let convo = &conversations[i];
-                            let new_status = if convo.status == "resolved" {
-                                crate::commands::messages::ConversationStatusEnum::Open
+                        KeyCode::Char('s') => {
+                            if let Some(i) = list_state.selected() {
+                                let convo = &conversations[i];
+                                let new_status = if convo.status == "resolved" {
+                                    crate::commands::messages::ConversationStatusEnum::Open
+                                } else {
+                                    crate::commands::messages::ConversationStatusEnum::Resolved
+                                };
+                                let id_clone = convo.id.clone();
+                                let c = client.clone();
+                                let tx = tx.clone();
+                                let view = TABS[tab_index];
+                                loading_list = true;
+                                tokio::spawn(async move {
+                                    let _ = crate::commands::messages::set_status(
+                                        &id_clone, new_status,
+                                    )
+                                    .await;
+                                    let res = fetch_list(&c, view).await;
+                                    let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
+                                });
+                            }
+                        }
+                        KeyCode::Char('a') => {
+                            if let Some(i) = list_state.selected() {
+                                let convo = &conversations[i];
+                                let unarchive = convo.archived;
+                                let id_clone = convo.id.clone();
+                                let c = client.clone();
+                                let tx = tx.clone();
+                                let view = TABS[tab_index];
+                                loading_list = true;
+                                tokio::spawn(async move {
+                                    let _ = crate::commands::messages::set_archive(
+                                        &id_clone, unarchive,
+                                    )
+                                    .await;
+                                    let res = fetch_list(&c, view).await;
+                                    let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
+                                });
+                            }
+                        }
+                        KeyCode::Right | KeyCode::Tab => {
+                            tab_index = (tab_index + 1) % TABS.len();
+                            list_state.select(Some(0));
+                            loading_list = true;
+                            let view = TABS[tab_index];
+                            let c = client.clone();
+                            let tx = tx.clone();
+                            tokio::spawn(async move {
+                                let res = fetch_list(&c, view).await;
+                                let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
+                            });
+                        }
+                        KeyCode::Left | KeyCode::BackTab => {
+                            tab_index = if tab_index == 0 {
+                                TABS.len() - 1
                             } else {
-                                crate::commands::messages::ConversationStatusEnum::Resolved
+                                tab_index - 1
                             };
-                            let id_clone = convo.id.clone();
+                            list_state.select(Some(0));
+                            loading_list = true;
+                            let view = TABS[tab_index];
                             let c = client.clone();
                             let tx = tx.clone();
-                            let view = TABS[tab_index];
-                            loading_list = true;
                             tokio::spawn(async move {
-                                let _ = crate::commands::messages::set_status(&id_clone, new_status).await;
                                 let res = fetch_list(&c, view).await;
                                 let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
                             });
                         }
-                    }
-                    KeyCode::Char('a') => {
-                        if let Some(i) = list_state.selected() {
-                            let convo = &conversations[i];
-                            let unarchive = convo.archived;
-                            let id_clone = convo.id.clone();
-                            let c = client.clone();
-                            let tx = tx.clone();
-                            let view = TABS[tab_index];
-                            loading_list = true;
-                            tokio::spawn(async move {
-                                let _ = crate::commands::messages::set_archive(&id_clone, unarchive).await;
-                                let res = fetch_list(&c, view).await;
-                                let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
-                            });
-                        }
-                    }
-                    KeyCode::Right | KeyCode::Tab => {
-                        tab_index = (tab_index + 1) % TABS.len();
-                        list_state.select(Some(0));
-                        loading_list = true;
-                        let view = TABS[tab_index];
-                        let c = client.clone();
-                        let tx = tx.clone();
-                        tokio::spawn(async move {
-                            let res = fetch_list(&c, view).await;
-                            let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
-                        });
-                    }
-                    KeyCode::Left | KeyCode::BackTab => {
-                        tab_index = if tab_index == 0 {
-                            TABS.len() - 1
-                        } else {
-                            tab_index - 1
-                        };
-                        list_state.select(Some(0));
-                        loading_list = true;
-                        let view = TABS[tab_index];
-                        let c = client.clone();
-                        let tx = tx.clone();
-                        tokio::spawn(async move {
-                            let res = fetch_list(&c, view).await;
-                            let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
-                        });
-                    }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
-                            thread_scroll = thread_scroll.saturating_sub(5);
-                        } else if !conversations.is_empty() {
-                            let i = match list_state.selected() {
-                                Some(i) => {
-                                    if i == 0 {
-                                        conversations.len() - 1
-                                    } else {
-                                        i - 1
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                                thread_scroll = thread_scroll.saturating_sub(5);
+                            } else if !conversations.is_empty() {
+                                let i = match list_state.selected() {
+                                    Some(i) => {
+                                        if i == 0 {
+                                            conversations.len() - 1
+                                        } else {
+                                            i - 1
+                                        }
                                     }
-                                }
-                                None => 0,
-                            };
-                            list_state.select(Some(i));
+                                    None => 0,
+                                };
+                                list_state.select(Some(i));
 
-                            // Load thread
-                            let id = conversations[i].id.clone();
-                            active_thread_id = Some(id.clone());
-                            active_thread_error = None;
-                            thread_scroll = 0;
-                            loading_thread = true;
-                            let c = client.clone();
-                            let tx = tx.clone();
-                            tokio::spawn(async move {
-                                let res = fetch_thread(&c, &id).await;
-                                let _ = tx.send(AppEvent::ThreadLoaded(id, res));
-                            });
+                                // Load thread
+                                let id = conversations[i].id.clone();
+                                active_thread_id = Some(id.clone());
+                                active_thread_error = None;
+                                thread_scroll = 0;
+                                loading_thread = true;
+                                let c = client.clone();
+                                let tx = tx.clone();
+                                tokio::spawn(async move {
+                                    let res = fetch_thread(&c, &id).await;
+                                    let _ = tx.send(AppEvent::ThreadLoaded(id, res));
+                                });
+                            }
                         }
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                                thread_scroll = thread_scroll.saturating_add(5);
+                            } else if !conversations.is_empty() {
+                                let i = match list_state.selected() {
+                                    Some(i) => {
+                                        if i >= conversations.len() - 1 {
+                                            0
+                                        } else {
+                                            i + 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                list_state.select(Some(i));
+
+                                // Load thread
+                                let id = conversations[i].id.clone();
+                                active_thread_id = Some(id.clone());
+                                active_thread_error = None;
+                                thread_scroll = 0;
+                                loading_thread = true;
+                                let c = client.clone();
+                                let tx = tx.clone();
+                                tokio::spawn(async move {
+                                    let res = fetch_thread(&c, &id).await;
+                                    let _ = tx.send(AppEvent::ThreadLoaded(id, res));
+                                });
+                            }
+                        }
+                        KeyCode::PageDown | KeyCode::Char(']') => {
                             thread_scroll = thread_scroll.saturating_add(5);
-                        } else if !conversations.is_empty() {
-                            let i = match list_state.selected() {
-                                Some(i) => {
-                                    if i >= conversations.len() - 1 {
-                                        0
-                                    } else {
-                                        i + 1
-                                    }
-                                }
-                                None => 0,
-                            };
-                            list_state.select(Some(i));
-
-                            // Load thread
-                            let id = conversations[i].id.clone();
-                            active_thread_id = Some(id.clone());
-                            active_thread_error = None;
-                            thread_scroll = 0;
-                            loading_thread = true;
-                            let c = client.clone();
-                            let tx = tx.clone();
-                            tokio::spawn(async move {
-                                let res = fetch_thread(&c, &id).await;
-                                let _ = tx.send(AppEvent::ThreadLoaded(id, res));
-                            });
                         }
+                        KeyCode::PageUp | KeyCode::Char('[') => {
+                            thread_scroll = thread_scroll.saturating_sub(5);
+                        }
+                        _ => {}
                     }
-                    KeyCode::PageDown | KeyCode::Char(']') => {
-                        thread_scroll = thread_scroll.saturating_add(5);
-                    }
-                    KeyCode::PageUp | KeyCode::Char('[') => {
-                        thread_scroll = thread_scroll.saturating_sub(5);
-                    }
-                    _ => {}
-                    }
-                },
+                }
                 AppEvent::ConversationsLoaded(view, res) => {
                     if TABS[tab_index] == view {
                         loading_list = false;
@@ -582,9 +621,10 @@ async fn run_app(
                                 conversations = list;
                                 if !conversations.is_empty() {
                                     let old_idx = list_state.selected().unwrap_or(0);
-                                    let new_idx = old_idx.min(conversations.len().saturating_sub(1));
+                                    let new_idx =
+                                        old_idx.min(conversations.len().saturating_sub(1));
                                     list_state.select(Some(new_idx));
-                                    
+
                                     // Load selected thread
                                     let id = conversations[new_idx].id.clone();
                                     if active_thread_id.as_deref() != Some(&*id) {
@@ -671,25 +711,40 @@ async fn fetch_list(client: &TrpcClient, view: InboxView) -> Result<Vec<Conversa
     }
 }
 
-async fn fetch_thread(client: &TrpcClient, id: &str) -> Result<(GetConversationResult, Option<crate::types::Proposal>)> {
+async fn fetch_thread(
+    client: &TrpcClient,
+    id: &str,
+) -> Result<(GetConversationResult, Option<crate::types::Proposal>)> {
     let convo: GetConversationResult = client
-        .query("message.getConversation", Some(&serde_json::json!({ "id": id })))
+        .query(
+            "message.getConversation",
+            Some(&serde_json::json!({ "id": id })),
+        )
         .await?;
-        
+
     let messages: Vec<crate::types::ConversationMessage> = client
-        .query("message.listMessages", Some(&serde_json::json!({ "conversationId": id })))
+        .query(
+            "message.listMessages",
+            Some(&serde_json::json!({ "conversationId": id })),
+        )
         .await?;
 
     let mut c = convo;
     c.messages = messages;
-    
+
     let mut proposal = None;
     if let Some(pid) = &c.conversation.proposal_id {
-        if let Ok(p) = client.query::<crate::types::Proposal>("proposal.admin.getById", Some(&serde_json::json!({ "id": pid }))).await {
+        if let Ok(p) = client
+            .query::<crate::types::Proposal>(
+                "proposal.admin.getById",
+                Some(&serde_json::json!({ "id": pid })),
+            )
+            .await
+        {
             proposal = Some(p);
         }
     }
-    
+
     Ok((c, proposal))
 }
 
