@@ -89,6 +89,7 @@ async fn run_app(
     let mut loading_thread = false;
     let mut active_thread: Option<(GetConversationResult, Option<crate::types::Proposal>)> = None;
     let mut active_thread_id: Option<String> = None;
+    let mut thread_scroll: u16 = 0;
 
     let mut active_thread_error: Option<String> = None;
 
@@ -265,7 +266,8 @@ async fn run_app(
 
                 let p = Paragraph::new(Text::from(text))
                     .block(right_block)
-                    .wrap(Wrap { trim: false });
+                    .wrap(Wrap { trim: false })
+                    .scroll((thread_scroll, 0));
                 f.render_widget(p, bottom_chunks[1]);
             } else if let Some(e) = &active_thread_error {
                 let p = Paragraph::new(Text::from(vec![
@@ -281,7 +283,7 @@ async fn run_app(
             
             // FOOTER: Global Hints
             let hints = Span::styled(
-                " [q/Esc] Quit   [Tab/Shift+Tab] Switch View   [↑/↓] Navigate   [r] Reply   [s] Toggle Status   [a] Toggle Archive ", 
+                " [q/Esc] Quit   [Tab/Shift+Tab] Switch View   [↑/↓] Navigate   [PgUp/PgDn] Scroll Thread   [r] Reply   [s] Status   [a] Archive ", 
                 Style::default().fg(Color::DarkGray).bg(Color::Black)
             );
             f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
@@ -401,6 +403,7 @@ async fn run_app(
                             let id = conversations[i].id.clone();
                             active_thread_id = Some(id.clone());
                             active_thread_error = None;
+                            thread_scroll = 0;
                             loading_thread = true;
                             let c = client.clone();
                             let tx = tx.clone();
@@ -428,6 +431,7 @@ async fn run_app(
                             let id = conversations[i].id.clone();
                             active_thread_id = Some(id.clone());
                             active_thread_error = None;
+                            thread_scroll = 0;
                             loading_thread = true;
                             let c = client.clone();
                             let tx = tx.clone();
@@ -436,6 +440,12 @@ async fn run_app(
                                 let _ = tx.send(AppEvent::ThreadLoaded(id, res));
                             });
                         }
+                    }
+                    KeyCode::PageDown => {
+                        thread_scroll = thread_scroll.saturating_add(5);
+                    }
+                    KeyCode::PageUp => {
+                        thread_scroll = thread_scroll.saturating_sub(5);
                     }
                     _ => {}
                 },
@@ -451,6 +461,7 @@ async fn run_app(
                                     let id = conversations[0].id.clone();
                                     active_thread_id = Some(id.clone());
                                     active_thread_error = None;
+                                    thread_scroll = 0;
                                     loading_thread = true;
                                     let c = client.clone();
                                     let tx = tx.clone();
