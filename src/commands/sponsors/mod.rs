@@ -117,6 +117,9 @@ pub async fn update(args: UpdateArgs) -> Result<()> {
                 "linkedinUrl": args.linkedin_url,
                 "notes": args.notes,
                 "assignedTo": args.assigned_to,
+                "tier": args.tier,
+                "contractValue": args.contract_value,
+                "contractCurrency": args.contract_currency,
             }),
         )
         .await?;
@@ -131,12 +134,33 @@ pub async fn update(args: UpdateArgs) -> Result<()> {
 
 pub async fn update_contacts(args: UpdateContactsArgs) -> Result<()> {
     let client = require_client()?;
-    let contact_persons = serde_json::json!([{
+
+    let sponsor: serde_json::Value = client
+        .query(
+            "sponsor.crm.getById",
+            Some(&serde_json::json!({ "id": args.id })),
+        )
+        .await?;
+
+    let mut contact_persons = sponsor
+        .get("contactPersons")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    // Unmark existing primary contacts
+    for contact in &mut contact_persons {
+        if let Some(obj) = contact.as_object_mut() {
+            obj.insert("isPrimary".to_string(), serde_json::json!(false));
+        }
+    }
+
+    contact_persons.push(serde_json::json!({
         "_key": uuid::Uuid::new_v4().to_string(),
         "name": args.name,
         "email": args.email,
         "isPrimary": true,
-    }]);
+    }));
 
     client
         .mutate::<serde_json::Value>(
@@ -315,7 +339,18 @@ pub async fn send_contract(id: &str, template: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-pub async fn delete_activity(id: &str) -> Result<()> {
+pub async fn delete_activity(id: &str, yes: bool) -> Result<()> {
+    if !yes && console::Term::stdout().is_term() {
+        let confirmed = dialoguer::Confirm::new()
+            .with_prompt(format!("Are you sure you want to delete activity {id}?"))
+            .default(false)
+            .interact()?;
+
+        if !confirmed {
+            anyhow::bail!("Deletion cancelled.");
+        }
+    }
+
     let client = require_client()?;
     client
         .mutate::<serde_json::Value>(

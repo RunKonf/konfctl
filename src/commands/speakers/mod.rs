@@ -411,3 +411,17 @@ pub async fn broadcast(subject: Option<&str>, message: Option<&str>, sync: bool)
 
     Ok(())
 }
+
+pub async fn sync_audience() -> Result<()> {
+    let client = require_client()?;
+    client
+        .mutate::<serde_json::Value>("speaker.admin.syncAudience", &serde_json::json!({}))
+        .await?;
+
+    if crate::is_agent() {
+        println!("{}", serde_json::json!({ "ok": true }));
+    } else {
+        println!("Speaker email audience synced successfully.");
+    }
+    Ok(())
+}

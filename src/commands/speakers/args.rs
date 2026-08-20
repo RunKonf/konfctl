@@ -50,6 +50,8 @@ pub enum SpeakerCommand {
     },
     /// Find a speaker by email or create a new one if not found
     FindOrCreate(FindOrCreateArgs),
+    /// Sync confirmed speakers with newsletter audience
+    SyncAudience,
 }
 
 #[derive(Args, Serialize)]

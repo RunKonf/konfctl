@@ -119,6 +119,21 @@ pub struct UpdateArgs {
     #[arg(long = "assigned-to")]
     #[serde(rename = "assignedTo", skip_serializing_if = "Option::is_none")]
     pub assigned_to: Option<String>,
+
+    /// Update sponsorship tier ID
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tier: Option<String>,
+
+    /// Update contract value
+    #[arg(long)]
+    #[serde(rename = "contractValue", skip_serializing_if = "Option::is_none")]
+    pub contract_value: Option<f64>,
+
+    /// Update contract currency (e.g. NOK, USD)
+    #[arg(long)]
+    #[serde(rename = "contractCurrency", skip_serializing_if = "Option::is_none")]
+    pub contract_currency: Option<String>,
 }
 
 #[derive(Args)]
