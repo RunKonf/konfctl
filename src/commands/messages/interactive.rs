@@ -94,6 +94,7 @@ async fn run_app(
     let mut active_thread_error: Option<String> = None;
     
     let mut composing_reply = false;
+    let mut confirm_send = false;
     let mut reply_buffer = String::new();
 
     // Load initial thread if available
@@ -313,8 +314,15 @@ async fn run_app(
                 let reply_lines = reply_buffer.len().saturating_add(2) / reply_width.max(1);
                 let reply_scroll = if reply_lines > 5 { reply_lines.saturating_sub(5) as u16 } else { 0 };
 
+                let title = if confirm_send {
+                    " PRESS ENTER AGAIN TO CONFIRM SEND (Esc to cancel) "
+                } else {
+                    " Type Reply (Enter to send, Esc to cancel) "
+                };
+                let border_color = if confirm_send { Color::Red } else { Color::Yellow };
+
                 let p = Paragraph::new(Text::from(reply_text))
-                    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Yellow)).title(" Type Reply (Enter to send, Esc to cancel) "))
+                    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(border_color)).title(title))
                     .wrap(Wrap { trim: false })
                     .scroll((reply_scroll, 0));
                 f.render_widget(p, right_chunks[1]);
@@ -335,36 +343,44 @@ async fn run_app(
                         match key.code {
                             KeyCode::Esc => {
                                 composing_reply = false;
+                                confirm_send = false;
                                 reply_buffer.clear();
                             }
                             KeyCode::Enter => {
                                 if !reply_buffer.trim().is_empty() {
-                                    if let Some(id) = &active_thread_id {
-                                        loading_thread = true;
-                                        let c = client.clone();
-                                        let id_clone = id.clone();
-                                        let text = reply_buffer.clone();
-                                        let tx = tx.clone();
-                                        tokio::spawn(async move {
-                                            let _ = c.mutate::<serde_json::Value>(
-                                                "message.send",
-                                                &serde_json::json!({
-                                                    "conversationId": id_clone,
-                                                    "body": text,
-                                                }),
-                                            ).await;
-                                            let res = fetch_thread(&c, &id_clone).await;
-                                            let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
-                                        });
+                                    if !confirm_send {
+                                        confirm_send = true;
+                                    } else {
+                                        if let Some(id) = &active_thread_id {
+                                            loading_thread = true;
+                                            let c = client.clone();
+                                            let id_clone = id.clone();
+                                            let text = reply_buffer.clone();
+                                            let tx = tx.clone();
+                                            tokio::spawn(async move {
+                                                let _ = c.mutate::<serde_json::Value>(
+                                                    "message.send",
+                                                    &serde_json::json!({
+                                                        "conversationId": id_clone,
+                                                        "body": text,
+                                                    }),
+                                                ).await;
+                                                let res = fetch_thread(&c, &id_clone).await;
+                                                let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                                            });
+                                        }
+                                        composing_reply = false;
+                                        confirm_send = false;
+                                        reply_buffer.clear();
                                     }
                                 }
-                                composing_reply = false;
-                                reply_buffer.clear();
                             }
                             KeyCode::Backspace => {
+                                confirm_send = false;
                                 reply_buffer.pop();
                             }
                             KeyCode::Char(c) => {
+                                confirm_send = false;
                                 reply_buffer.push(c);
                             }
                             _ => {}
