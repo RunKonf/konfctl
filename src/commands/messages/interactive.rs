@@ -199,7 +199,7 @@ async fn run_app(
             let right_chunks = if composing_reply {
                 Layout::default()
                     .direction(Direction::Vertical)
-                    .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
+                    .constraints([Constraint::Min(0), Constraint::Length(8)].as_ref())
                     .split(bottom_chunks[1])
             } else {
                 Layout::default()
@@ -309,9 +309,14 @@ async fn run_app(
                         Span::styled("█", Style::default().fg(Color::White)),
                     ]),
                 ];
+                let reply_width = right_chunks[1].width.saturating_sub(4) as usize;
+                let reply_lines = reply_buffer.len().saturating_add(2) / reply_width.max(1);
+                let reply_scroll = if reply_lines > 5 { reply_lines.saturating_sub(5) as u16 } else { 0 };
+
                 let p = Paragraph::new(Text::from(reply_text))
                     .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Yellow)).title(" Type Reply (Enter to send, Esc to cancel) "))
-                    .wrap(Wrap { trim: false });
+                    .wrap(Wrap { trim: false })
+                    .scroll((reply_scroll, 0));
                 f.render_widget(p, right_chunks[1]);
             }
             
