@@ -109,26 +109,25 @@ async fn run_app(
         terminal.draw(|f| {
             let size = f.area();
 
-            // Layout: Tabs at top, then split screen (left list, right thread)
+            // Layout: Tabs at top, then split screen (left list, right thread), then footer at bottom
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+                .constraints([
+                    Constraint::Length(3), 
+                    Constraint::Min(0), 
+                    Constraint::Length(1)
+                ].as_ref())
                 .split(size);
 
-            let tab_titles: Vec<Line> = TABS
-                .iter()
-                .map(|t| Line::from(format!("{:?}", t)))
-                .collect();
-
+            let tab_titles: Vec<Line> = TABS.iter().map(|t| {
+                Line::from(format!("{:?}", t))
+            }).collect();
+            
             let tabs = Tabs::new(tab_titles)
                 .block(Block::default().borders(Borders::ALL).title(" Inbox Tabs "))
                 .select(tab_index)
                 .style(Style::default().fg(Color::Cyan))
-                .highlight_style(
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                );
+                .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
             f.render_widget(tabs, chunks[0]);
 
             let bottom_chunks = Layout::default()
@@ -279,6 +278,13 @@ async fn run_app(
                 let p = Paragraph::new("Select a conversation...").block(right_block);
                 f.render_widget(p, bottom_chunks[1]);
             }
+            
+            // FOOTER: Global Hints
+            let hints = Span::styled(
+                " [q/Esc] Quit   [Tab/Shift+Tab] Switch View   [↑/↓] Navigate   [r] Reply   [s] Toggle Status   [a] Toggle Archive ", 
+                Style::default().fg(Color::DarkGray).bg(Color::Black)
+            );
+            f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
         })?;
 
         if let Some(event) = rx.recv().await {
@@ -319,6 +325,40 @@ async fn run_app(
                                     });
                                 }
                             }
+                        }
+                    }
+                    KeyCode::Char('s') => {
+                        if let Some(i) = list_state.selected() {
+                            let convo = &conversations[i];
+                            let new_status = if convo.status == "resolved" {
+                                crate::commands::messages::ConversationStatusEnum::Open
+                            } else {
+                                crate::commands::messages::ConversationStatusEnum::Resolved
+                            };
+                            let id_clone = convo.id.clone();
+                            let c = client.clone();
+                            let tx = tx.clone();
+                            loading_thread = true;
+                            tokio::spawn(async move {
+                                let _ = crate::commands::messages::set_status(&id_clone, new_status).await;
+                                let res = fetch_thread(&c, &id_clone).await;
+                                let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                            });
+                        }
+                    }
+                    KeyCode::Char('a') => {
+                        if let Some(i) = list_state.selected() {
+                            let convo = &conversations[i];
+                            let unarchive = convo.archived;
+                            let id_clone = convo.id.clone();
+                            let c = client.clone();
+                            let tx = tx.clone();
+                            loading_thread = true;
+                            tokio::spawn(async move {
+                                let _ = crate::commands::messages::set_archive(&id_clone, unarchive).await;
+                                let res = fetch_thread(&c, &id_clone).await;
+                                let _ = tx.send(AppEvent::ThreadLoaded(id_clone, res));
+                            });
                         }
                     }
                     KeyCode::Right | KeyCode::Tab => {
