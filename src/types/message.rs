@@ -73,9 +73,19 @@ pub struct ConversationPreference {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ConversationDetail {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub subject: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetConversationResult {
-    pub conversation: ConversationRow,
+    pub conversation: ConversationDetail,
+    #[serde(default)]
     pub messages: Vec<ConversationMessage>,
+    #[serde(default)]
     pub participants: Vec<ConversationParticipant>,
     pub preference: Option<ConversationPreference>,
 }
