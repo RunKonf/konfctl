@@ -67,10 +67,14 @@ async fn run_app(
         loop {
             if crossterm::event::poll(tick_rate).unwrap_or(false) {
                 if let Ok(Event::Key(key)) = event::read() {
-                    let _ = tx_clone.send(AppEvent::Input(key));
+                    if tx_clone.send(AppEvent::Input(key)).is_err() {
+                        break;
+                    }
                 }
             }
-            let _ = tx_clone.send(AppEvent::Tick);
+            if tx_clone.send(AppEvent::Tick).is_err() {
+                break;
+            }
         }
     });
 
