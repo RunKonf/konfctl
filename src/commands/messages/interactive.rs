@@ -96,6 +96,7 @@ async fn run_app(
     let mut composing_reply = false;
     let mut confirm_send = false;
     let mut reply_buffer = String::new();
+    let mut last_refresh = std::time::Instant::now();
 
     // Load initial thread if available
     if let Some(first) = conversations.first() {
@@ -585,10 +586,13 @@ async fn run_app(
                                     
                                     // Load selected thread
                                     let id = conversations[new_idx].id.clone();
-                                    active_thread_id = Some(id.clone());
-                                    active_thread_error = None;
-                                    thread_scroll = 0;
-                                    loading_thread = true;
+                                    if active_thread_id.as_deref() != Some(&*id) {
+                                        active_thread_id = Some(id.clone());
+                                        active_thread_error = None;
+                                        thread_scroll = 0;
+                                        loading_thread = true;
+                                    }
+                                    // Always fetch it (quiet refresh if same)
                                     let c = client.clone();
                                     let tx = tx.clone();
                                     tokio::spawn(async move {
@@ -623,7 +627,19 @@ async fn run_app(
                         }
                     }
                 }
-                AppEvent::Tick => {}
+                AppEvent::Tick => {
+                    if last_refresh.elapsed() >= std::time::Duration::from_secs(10) {
+                        last_refresh = std::time::Instant::now();
+                        let view = TABS[tab_index];
+                        let c = client.clone();
+                        let tx = tx.clone();
+                        // Quietly fetch without blocking UI
+                        tokio::spawn(async move {
+                            let res = fetch_list(&c, view).await;
+                            let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
+                        });
+                    }
+                }
             }
         }
     }
