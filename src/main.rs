@@ -61,6 +61,8 @@ enum AdminCommand {
     Speakers(commands::speakers::SpeakerCommand),
     /// Manage featured content on the front page
     Featured(commands::featured::FeaturedArgs),
+    /// Organizer inbox and messaging
+    Messages(commands::messages::MessageArgs),
     /// Manage schedules
     #[command(subcommand)]
     Schedule(commands::schedule::ScheduleCommand),
@@ -320,6 +322,33 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
             }
         },
         AdminCommand::Featured(args) => commands::featured::run(args).await,
+        AdminCommand::Messages(args) => {
+            use commands::messages::MessageCommand;
+            match args.command {
+                MessageCommand::List(list_args) => commands::messages::list(list_args).await,
+                MessageCommand::Get { id, json } => commands::messages::get(&id, json).await,
+                MessageCommand::Reply { id, message } => {
+                    check_agent_guard(is_agent, &format!("admin messages reply {}", id))?;
+                    commands::messages::reply(&id, &message).await
+                }
+                MessageCommand::New { speaker, subject, message } => {
+                    check_agent_guard(is_agent, &format!("admin messages new --speaker {}", speaker))?;
+                    commands::messages::start_new(&speaker, &subject, &message).await
+                }
+                MessageCommand::Status { id, status } => {
+                    check_agent_guard(is_agent, &format!("admin messages status {}", id))?;
+                    commands::messages::set_status(&id, status).await
+                }
+                MessageCommand::Assign { id, to } => {
+                    check_agent_guard(is_agent, &format!("admin messages assign {}", id))?;
+                    commands::messages::set_assignee(&id, to.as_deref()).await
+                }
+                MessageCommand::Archive { id, unarchive } => {
+                    check_agent_guard(is_agent, &format!("admin messages archive {}", id))?;
+                    commands::messages::set_archive(&id, unarchive).await
+                }
+            }
+        }
         AdminCommand::Schedule(cmd) => match cmd {
             commands::schedule::ScheduleCommand::List(args) => commands::schedule::list(args).await,
             commands::schedule::ScheduleCommand::Get { id, json } => {
