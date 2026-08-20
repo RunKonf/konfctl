@@ -12,12 +12,15 @@ mod interactive;
 
 pub async fn list(args: ListArgs) -> Result<()> {
     let client = require_client()?;
-    
+
     // The endpoint returns { conversations: [...], nextCursor: ... }
     let res: serde_json::Value = client
-        .query("message.listConversations", Some(&serde_json::to_value(&args)?))
+        .query(
+            "message.listConversations",
+            Some(&serde_json::to_value(&args)?),
+        )
         .await?;
-        
+
     let conversations: Vec<ConversationRow> = if let Some(arr) = res.as_array() {
         serde_json::from_value(serde_json::Value::Array(arr.clone()))?
     } else if let Some(arr) = res.get("conversations").and_then(|v| v.as_array()) {
@@ -62,11 +65,17 @@ pub async fn list(args: ListArgs) -> Result<()> {
 pub async fn get(id: &str, json: bool) -> Result<()> {
     let client = require_client()?;
     let convo: GetConversationResult = client
-        .query("message.getConversation", Some(&serde_json::json!({ "id": id })))
+        .query(
+            "message.getConversation",
+            Some(&serde_json::json!({ "id": id })),
+        )
         .await?;
-        
+
     let messages: Vec<crate::types::ConversationMessage> = client
-        .query("message.listMessages", Some(&serde_json::json!({ "conversationId": id })))
+        .query(
+            "message.listMessages",
+            Some(&serde_json::json!({ "conversationId": id })),
+        )
         .await?;
 
     if json || crate::is_agent() {
@@ -80,27 +89,45 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("{} {}\n{}", "Thread:".bold().cyan(), convo.conversation.subject.as_deref().unwrap_or("No subject").bold(), format!("ID: {}", convo.conversation.id).dimmed());
+    println!(
+        "{} {}\n{}",
+        "Thread:".bold().cyan(),
+        convo
+            .conversation
+            .subject
+            .as_deref()
+            .unwrap_or("No subject")
+            .bold(),
+        format!("ID: {}", convo.conversation.id).dimmed()
+    );
 
     println!("{}", "Participants:".bold().cyan());
     for p in &convo.participants {
-        println!("  - {} {}", p.name.as_deref().unwrap_or("Unknown"), if p.is_organizer { "(Organizer)".dimmed() } else { "".dimmed() });
+        println!(
+            "  - {} {}",
+            p.name.as_deref().unwrap_or("Unknown"),
+            if p.is_organizer {
+                "(Organizer)".dimmed()
+            } else {
+                "".dimmed()
+            }
+        );
     }
-    
+
     println!("\n{}\n", "Messages:".bold().cyan());
     for msg in messages.iter().rev() {
         let author = msg.author_name.as_deref().unwrap_or("Unknown");
-        let date = msg.created_at.as_str(); 
+        let date = msg.created_at.as_str();
         println!("{} [{}]", author.bold().blue(), date.dimmed());
         println!("{}\n", msg.body);
     }
-    
+
     Ok(())
 }
 
 pub async fn reply(id: &str, message: &str) -> Result<()> {
     let client = require_client()?;
-    
+
     let _res: serde_json::Value = client
         .mutate(
             "message.send",
@@ -121,7 +148,7 @@ pub async fn reply(id: &str, message: &str) -> Result<()> {
 
 pub async fn start_new(speaker_id: &str, subject: &str, message: &str) -> Result<()> {
     let client = require_client()?;
-    
+
     let _res: serde_json::Value = client
         .mutate(
             "message.send",
@@ -143,7 +170,7 @@ pub async fn start_new(speaker_id: &str, subject: &str, message: &str) -> Result
 
 pub async fn set_status(id: &str, status: ConversationStatusEnum) -> Result<()> {
     let client = require_client()?;
-    
+
     client
         .mutate::<serde_json::Value>(
             "message.setStatus",
@@ -155,7 +182,10 @@ pub async fn set_status(id: &str, status: ConversationStatusEnum) -> Result<()> 
         .await?;
 
     if crate::is_agent() {
-        println!("{}", serde_json::json!({ "ok": true, "id": id, "status": status }));
+        println!(
+            "{}",
+            serde_json::json!({ "ok": true, "id": id, "status": status })
+        );
     } else {
         println!("Conversation {} status set to {:?}.", id, status);
     }
@@ -164,7 +194,7 @@ pub async fn set_status(id: &str, status: ConversationStatusEnum) -> Result<()> 
 
 pub async fn set_assignee(id: &str, to: Option<&str>) -> Result<()> {
     let client = require_client()?;
-    
+
     client
         .mutate::<serde_json::Value>(
             "message.setAssignee",
@@ -176,7 +206,10 @@ pub async fn set_assignee(id: &str, to: Option<&str>) -> Result<()> {
         .await?;
 
     if crate::is_agent() {
-        println!("{}", serde_json::json!({ "ok": true, "id": id, "assignedTo": to }));
+        println!(
+            "{}",
+            serde_json::json!({ "ok": true, "id": id, "assignedTo": to })
+        );
     } else {
         if let Some(user_id) = to {
             println!("Conversation {} assigned to {}.", id, user_id);
@@ -190,7 +223,7 @@ pub async fn set_assignee(id: &str, to: Option<&str>) -> Result<()> {
 pub async fn set_archive(id: &str, unarchive: bool) -> Result<()> {
     let client = require_client()?;
     let archived = !unarchive;
-    
+
     client
         .mutate::<serde_json::Value>(
             "message.setArchived",
@@ -202,7 +235,10 @@ pub async fn set_archive(id: &str, unarchive: bool) -> Result<()> {
         .await?;
 
     if crate::is_agent() {
-        println!("{}", serde_json::json!({ "ok": true, "id": id, "archived": archived }));
+        println!(
+            "{}",
+            serde_json::json!({ "ok": true, "id": id, "archived": archived })
+        );
     } else {
         if archived {
             println!("Conversation {} archived globally.", id);

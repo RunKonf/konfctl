@@ -331,8 +331,15 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                     check_agent_guard(is_agent, &format!("admin messages reply {}", id))?;
                     commands::messages::reply(&id, &message).await
                 }
-                MessageCommand::New { speaker, subject, message } => {
-                    check_agent_guard(is_agent, &format!("admin messages new --speaker {}", speaker))?;
+                MessageCommand::New {
+                    speaker,
+                    subject,
+                    message,
+                } => {
+                    check_agent_guard(
+                        is_agent,
+                        &format!("admin messages new --speaker {}", speaker),
+                    )?;
                     commands::messages::start_new(&speaker, &subject, &message).await
                 }
                 MessageCommand::Status { id, status } => {
