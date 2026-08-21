@@ -105,6 +105,7 @@ async fn run_app(
     let mut active_thread: Option<(GetConversationResult, Option<crate::types::Proposal>)> = None;
     let mut active_thread_id: Option<String> = None;
     let mut thread_scroll: u16 = 0;
+    let mut scroll_to_bottom = false;
 
     let mut active_thread_error: Option<String> = None;
 
@@ -300,6 +301,39 @@ async fn run_app(
                 // Keybinds at bottom
                 text.push(Line::from("─".repeat(bottom_chunks[1].width as usize - 2)));
                 text.push(Line::from(Span::styled("Press 'r' to reply", Style::default().fg(Color::DarkGray))));
+
+                let mut total_lines: u16 = 0;
+                let available_width = right_chunks[0].width.saturating_sub(2).max(1) as usize;
+
+                if let Some(proposal) = proposal {
+                    let text = format!("Proposal: {} - {}", proposal.id, proposal.title);
+                    total_lines += (text.chars().count() / available_width) as u16 + 1;
+                    total_lines += 1;
+                }
+                if let Some(subject) = &thread.conversation.subject {
+                    let text = format!("Subject: {}", subject);
+                    total_lines += (text.chars().count() / available_width) as u16 + 1;
+                    total_lines += 1;
+                }
+
+                for msg in &thread.messages {
+                    total_lines += 1; // Header
+                    for line in msg.body.lines() {
+                        total_lines += (line.chars().count() / available_width) as u16 + 1;
+                    }
+                    total_lines += 1; // Empty line
+                }
+                total_lines += 2; // Keybinds
+
+                let viewport_height = right_chunks[0].height.saturating_sub(2);
+                let max_scroll = total_lines.saturating_sub(viewport_height);
+
+                if scroll_to_bottom {
+                    thread_scroll = max_scroll;
+                    scroll_to_bottom = false;
+                } else if thread_scroll > max_scroll {
+                    thread_scroll = max_scroll;
+                }
 
                 let p = Paragraph::new(Text::from(text))
                     .block(right_block)
@@ -659,6 +693,7 @@ async fn run_app(
                         match res {
                             Ok(thread) => {
                                 active_thread = Some(thread);
+                                scroll_to_bottom = true;
                                 active_thread_error = None;
                             }
                             Err(e) => {
@@ -698,17 +733,15 @@ async fn fetch_list(client: &TrpcClient, view: InboxView) -> Result<Vec<Conversa
         )
         .await?;
 
-    if let Some(arr) = res.as_array() {
-        Ok(serde_json::from_value(serde_json::Value::Array(
-            arr.clone(),
-        ))?)
+    let mut list: Vec<ConversationRow> = if let Some(arr) = res.as_array() {
+        serde_json::from_value(serde_json::Value::Array(arr.clone()))?
     } else if let Some(arr) = res.get("conversations").and_then(|v| v.as_array()) {
-        Ok(serde_json::from_value(serde_json::Value::Array(
-            arr.clone(),
-        ))?)
+        serde_json::from_value(serde_json::Value::Array(arr.clone()))?
     } else {
-        Ok(Vec::new())
-    }
+        Vec::new()
+    };
+    list.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+    Ok(list)
 }
 
 async fn fetch_thread(
