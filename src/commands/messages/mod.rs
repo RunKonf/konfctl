@@ -41,6 +41,9 @@ pub async fn list(args: ListArgs) -> Result<()> {
         Vec::new()
     };
 
+    let mut conversations = conversations;
+    conversations.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+
     if args.json || crate::is_agent() {
         let out_value = if args.compact {
             serde_json::to_value(
