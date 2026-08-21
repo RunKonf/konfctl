@@ -298,9 +298,6 @@ async fn run_app(
                     text.push(Line::from(""));
                 }
 
-                // Keybinds at bottom
-                text.push(Line::from("─".repeat(bottom_chunks[1].width as usize - 2)));
-                text.push(Line::from(Span::styled("Press 'r' to reply", Style::default().fg(Color::DarkGray))));
 
                 let mut total_lines: u16 = 0;
                 let available_width = right_chunks[0].width.saturating_sub(2).max(1) as usize;
@@ -323,7 +320,7 @@ async fn run_app(
                     }
                     total_lines += 1; // Empty line
                 }
-                total_lines += 2; // Keybinds
+
 
                 let viewport_height = right_chunks[0].height.saturating_sub(2);
                 let max_scroll = total_lines.saturating_sub(viewport_height);
@@ -380,7 +377,7 @@ async fn run_app(
 
             // FOOTER: Global Hints
             let hints = Span::styled(
-                " [q/Esc] Quit   [Tab/S+Tab] Switch View   [↑/↓] Navigate   [PgUp/Dn|Shift+↕|[/]] Scroll   [n] New   [r] Reply   [s] Status   [a] Archive ",
+                " [q/Esc] Quit  [Tab] View  [j/k] List  [^u/^d] Scroll  [n] New  [r] Reply  [s] Status  [a] Archive ",
                 Style::default().fg(Color::DarkGray).bg(Color::Black)
             );
             f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
@@ -638,29 +635,31 @@ async fn run_app(
                                 });
                             }
                         }
-                        KeyCode::Char('u') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        KeyCode::Char('u')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
                             thread_scroll = thread_scroll.saturating_sub(10);
                         }
-                        KeyCode::Char('d') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        KeyCode::Char('d')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
                             thread_scroll = thread_scroll.saturating_add(10);
                         }
-                        KeyCode::Char('b') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        KeyCode::Char('b')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
                             thread_scroll = thread_scroll.saturating_sub(20);
                         }
-                        KeyCode::Char('f') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        KeyCode::Char('f')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
                             thread_scroll = thread_scroll.saturating_add(20);
                         }
-                        KeyCode::Char('K') => {
+                        KeyCode::Char('K' | '[') | KeyCode::PageUp => {
                             thread_scroll = thread_scroll.saturating_sub(5);
                         }
-                        KeyCode::Char('J') => {
+                        KeyCode::Char('J' | ']') | KeyCode::PageDown => {
                             thread_scroll = thread_scroll.saturating_add(5);
-                        }
-                        KeyCode::PageDown | KeyCode::Char(']') => {
-                            thread_scroll = thread_scroll.saturating_add(5);
-                        }
-                        KeyCode::PageUp | KeyCode::Char('[') => {
-                            thread_scroll = thread_scroll.saturating_sub(5);
                         }
                         _ => {}
                     }
