@@ -125,23 +125,23 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
         return Ok(());
     }
 
+    let subject_raw = convo.conversation.subject.as_deref().unwrap_or("No subject");
+    let subject_safe = console::strip_ansi_codes(subject_raw);
+    
     println!(
         "{} {}\n{}",
         "Thread:".bold().cyan(),
-        convo
-            .conversation
-            .subject
-            .as_deref()
-            .unwrap_or("No subject")
-            .bold(),
+        subject_safe.bold(),
         format!("ID: {}", convo.conversation.id).dimmed()
     );
 
     println!("{}", "Participants:".bold().cyan());
     for p in &convo.participants {
+        let name_raw = p.name.as_deref().unwrap_or("Unknown");
+        let name_safe = console::strip_ansi_codes(name_raw);
         println!(
             "  - {} {}",
-            p.name.as_deref().unwrap_or("Unknown"),
+            name_safe,
             if p.is_organizer {
                 "(Organizer)".dimmed()
             } else {
@@ -152,10 +152,13 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
 
     println!("\n{}\n", "Messages:".bold().cyan());
     for msg in messages.iter().rev() {
-        let author = msg.author_name.as_deref().unwrap_or("Unknown");
+        let author_raw = msg.author_name.as_deref().unwrap_or("Unknown");
+        let author_safe = console::strip_ansi_codes(author_raw);
         let date = msg.created_at.as_str();
-        println!("{} [{}]", author.bold().blue(), date.dimmed());
-        println!("{}\n", msg.body);
+        println!("{} [{}]", author_safe.bold().blue(), date.dimmed());
+        
+        let body_safe = console::strip_ansi_codes(&msg.body);
+        println!("{}\n", body_safe);
     }
 
     Ok(())
