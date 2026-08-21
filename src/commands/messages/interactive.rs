@@ -14,6 +14,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+
+#[derive(PartialEq)]
+enum ActivePane {
+    List,
+    Thread,
+}
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -106,6 +112,7 @@ async fn run_app(
     let mut active_thread_id: Option<String> = None;
     let mut thread_scroll: u16 = 0;
     let mut scroll_to_bottom = false;
+    let mut active_pane = ActivePane::List;
 
     let mut active_thread_error: Option<String> = None;
 
@@ -192,13 +199,21 @@ async fn run_app(
                 })
                 .collect();
 
+            let active_border_style = Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD);
+            let inactive_border_style = Style::default().fg(Color::DarkGray);
+
             let list_title = if loading_list {
                 " Loading... "
             } else {
                 " Conversations "
             };
             let list_widget = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title(list_title))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(list_title)
+                        .border_style(if active_pane == ActivePane::List { active_border_style } else { inactive_border_style })
+                )
                 .highlight_style(
                     Style::default()
                         .bg(Color::DarkGray)
@@ -226,7 +241,10 @@ async fn run_app(
                     .split(bottom_chunks[1])
             };
 
-            let right_block = Block::default().borders(Borders::ALL).title(thread_title);
+            let right_block = Block::default()
+                .borders(Borders::ALL)
+                .title(thread_title)
+                .border_style(if active_pane == ActivePane::Thread { active_border_style } else { inactive_border_style });
 
             if let Some((thread, proposal)) = &active_thread {
                 let mut text = vec![];
@@ -439,7 +457,7 @@ async fn run_app(
                     }
 
                     match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                        KeyCode::Char('q') => return Ok(()),
                         KeyCode::Char('n') => {
                             let _ = disable_raw_mode();
                             let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
@@ -501,6 +519,13 @@ async fn run_app(
                         }
                         KeyCode::Char('r') => {
                             if active_thread_id.is_some() {
+                                active_pane = ActivePane::Thread;
+                                composing_reply = true;
+                                reply_buffer.clear();
+                            }
+                        }
+                        KeyCode::Enter if active_pane == ActivePane::Thread => {
+                            if active_thread_id.is_some() {
                                 composing_reply = true;
                                 reply_buffer.clear();
                             }
@@ -547,7 +572,19 @@ async fn run_app(
                                 });
                             }
                         }
-                        KeyCode::Right | KeyCode::Tab => {
+                        KeyCode::Right | KeyCode::Enter => {
+                            if active_pane == ActivePane::List && !conversations.is_empty() {
+                                active_pane = ActivePane::Thread;
+                            }
+                        }
+                        KeyCode::Left | KeyCode::Esc => {
+                            if active_pane == ActivePane::Thread {
+                                active_pane = ActivePane::List;
+                            } else if key.code == KeyCode::Esc {
+                                return Ok(());
+                            }
+                        }
+                        KeyCode::Tab => {
                             tab_index = (tab_index + 1) % TABS.len();
                             list_state.select(Some(0));
                             loading_list = true;
@@ -559,7 +596,7 @@ async fn run_app(
                                 let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
                             });
                         }
-                        KeyCode::Left | KeyCode::BackTab => {
+                        KeyCode::BackTab => {
                             tab_index = if tab_index == 0 {
                                 TABS.len() - 1
                             } else {
@@ -576,9 +613,9 @@ async fn run_app(
                             });
                         }
                         KeyCode::Up | KeyCode::Char('k') => {
-                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                            if active_pane == ActivePane::Thread {
                                 thread_scroll = thread_scroll.saturating_sub(5);
-                            } else if !conversations.is_empty() {
+                            } else if active_pane == ActivePane::List && !conversations.is_empty() {
                                 let i = match list_state.selected() {
                                     Some(i) => {
                                         if i == 0 {
@@ -606,9 +643,9 @@ async fn run_app(
                             }
                         }
                         KeyCode::Down | KeyCode::Char('j') => {
-                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                            if active_pane == ActivePane::Thread {
                                 thread_scroll = thread_scroll.saturating_add(5);
-                            } else if !conversations.is_empty() {
+                            } else if active_pane == ActivePane::List && !conversations.is_empty() {
                                 let i = match list_state.selected() {
                                     Some(i) => {
                                         if i >= conversations.len() - 1 {
