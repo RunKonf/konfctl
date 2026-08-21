@@ -523,12 +523,14 @@ async fn run_app(
                             if active_thread_id.is_some() {
                                 active_pane = ActivePane::Thread;
                                 composing_reply = true;
+                                scroll_to_bottom = true;
                                 reply_buffer.clear();
                             }
                         }
                         KeyCode::Enter if active_pane == ActivePane::Thread => {
                             if active_thread_id.is_some() {
                                 composing_reply = true;
+                                scroll_to_bottom = true;
                                 reply_buffer.clear();
                             }
                         }
