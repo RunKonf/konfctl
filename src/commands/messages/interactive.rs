@@ -124,6 +124,7 @@ async fn run_app(
     // Load initial thread if available
     if let Some(first) = conversations.first() {
         active_thread_id = Some(first.id.clone());
+        scroll_to_bottom = true;
         loading_thread = true;
         let c = client.clone();
         let id = first.id.clone();
@@ -418,6 +419,7 @@ async fn run_app(
                                     } else {
                                         if let Some(id) = &active_thread_id {
                                             loading_thread = true;
+                                            scroll_to_bottom = true;
                                             let c = client.clone();
                                             let id_clone = id.clone();
                                             let text = reply_buffer.clone();
@@ -633,6 +635,7 @@ async fn run_app(
                                 active_thread_id = Some(id.clone());
                                 active_thread_error = None;
                                 thread_scroll = 0;
+                                scroll_to_bottom = true;
                                 loading_thread = true;
                                 let c = client.clone();
                                 let tx = tx.clone();
@@ -663,6 +666,7 @@ async fn run_app(
                                 active_thread_id = Some(id.clone());
                                 active_thread_error = None;
                                 thread_scroll = 0;
+                                scroll_to_bottom = true;
                                 loading_thread = true;
                                 let c = client.clone();
                                 let tx = tx.clone();
@@ -719,6 +723,7 @@ async fn run_app(
                                         active_thread_id = Some(id.clone());
                                         active_thread_error = None;
                                         thread_scroll = 0;
+                                        scroll_to_bottom = true;
                                         loading_thread = true;
                                     }
                                     // Always fetch it (quiet refresh if same)
@@ -747,7 +752,6 @@ async fn run_app(
                         match res {
                             Ok(thread) => {
                                 active_thread = Some(thread);
-                                scroll_to_bottom = true;
                                 active_thread_error = None;
                             }
                             Err(e) => {
