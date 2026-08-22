@@ -31,16 +31,24 @@ pub async fn list_interactive(client: &TrpcClient, initial_args: ListArgs) -> Re
     let hints = "↑↓ navigate · type to search · enter select · esc quit".dimmed();
     let mut args = initial_args;
     let mut cursor = 0usize;
+    // The roster is fetched once and reused: stepping in and out of a detail
+    // view is not a reason to re-read every sponsor. It is dropped whenever the
+    // filters change, a write happens, or the user asks for a refresh.
+    let mut cached: Option<Vec<crate::types::SponsorForConference>> = None;
 
     loop {
-        let sp = ui::spinner("Fetching sponsors…");
-        let sponsors = super::fetch_all(client, &args).await?;
-        sp.finish_and_clear();
+        if cached.is_none() {
+            let sp = ui::spinner("Fetching sponsors…");
+            cached = Some(super::fetch_all(client, &args).await?);
+            sp.finish_and_clear();
+        }
+        let sponsors: &[crate::types::SponsorForConference] = cached.as_deref().unwrap_or_default();
 
         if sponsors.is_empty() {
             println!("No sponsors match current filters. Press enter to adjust filters.");
             show_filter_menu(&mut args)?;
             cursor = 0;
+            cached = None;
             continue;
         }
 
@@ -73,10 +81,10 @@ pub async fn list_interactive(client: &TrpcClient, initial_args: ListArgs) -> Re
         };
 
         let menu_label = format!("⚙ Filter & Sort  ({summary})");
-        let mut items: Vec<String> = vec![menu_label];
+        let mut items: Vec<String> = vec![menu_label, "↻ Refresh".to_string()];
         items.extend(sponsors.iter().map(display::format_sponsor_row));
 
-        let default = (cursor + 1).min(items.len() - 1);
+        let default = (cursor + 2).min(items.len() - 1);
 
         let max_rows = ui::max_visible_items(&items, 4);
 
@@ -96,11 +104,20 @@ pub async fn list_interactive(client: &TrpcClient, initial_args: ListArgs) -> Re
             Some(0) => {
                 show_filter_menu(&mut args)?;
                 cursor = 0;
+                cached = None;
+            }
+            Some(1) => {
+                cached = None;
             }
             Some(idx) => {
-                cursor = idx - 1;
-                let ids: Vec<&str> = sponsors.iter().map(|s| s.id.as_str()).collect();
-                cursor = show_detail_loop(client, &ids, cursor).await?;
+                cursor = idx - 2;
+                let ids: Vec<String> = sponsors.iter().map(|s| s.id.clone()).collect();
+                let (next_cursor, mutated) = show_detail_loop(client, &ids, cursor).await?;
+                cursor = next_cursor;
+                if mutated {
+                    // A write happened, so the cached rows are provably stale.
+                    cached = None;
+                }
             }
             None => break,
         }
@@ -177,17 +194,40 @@ pub fn show_filter_menu(args: &mut ListArgs) -> Result<()> {
     Ok(())
 }
 
+/// Returns the cursor position on exit and whether any write happened, so the
+/// caller knows if its cached list is still trustworthy.
 #[allow(clippy::too_many_lines)]
-async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Result<usize> {
+async fn show_detail_loop(
+    client: &TrpcClient,
+    ids: &[String],
+    start: usize,
+) -> Result<(usize, bool)> {
     let mut idx = start;
     let total = ids.len();
+    // Records already opened in this session are kept, so paging back and forth
+    // with ←/→ costs nothing. Any write to a record drops its entry.
+    let mut cache: std::collections::HashMap<String, crate::types::SponsorForConference> =
+        std::collections::HashMap::new();
+    let mut mutated = false;
+    let mut invalidate_current = false;
 
     loop {
-        let sp = ui::spinner("Loading…");
-        let sponsor = super::fetch_one(client, ids[idx]).await?;
-        sp.finish_and_clear();
+        let id = ids[idx].clone();
+        if invalidate_current {
+            cache.remove(&id);
+            invalidate_current = false;
+        }
+        if !cache.contains_key(&id) {
+            let sp = ui::spinner("Loading…");
+            let fetched = super::fetch_one(client, &id).await?;
+            sp.finish_and_clear();
+            cache.insert(id.clone(), fetched);
+        }
+        let Some(sponsor) = cache.get(&id) else {
+            continue;
+        };
 
-        let content = display::render_sponsor_detail(&sponsor);
+        let content = display::render_sponsor_detail(sponsor);
 
         let mut nav = vec![];
         if idx > 0 {
@@ -205,6 +245,7 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
             "n add note",
             "e email",
             "d delete log",
+            "r refresh",
             "q/esc back",
         ]);
         let footer_measure = nav_full.join(" · ");
@@ -220,6 +261,7 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
         nav.push("n add note");
         nav.push("e email");
         nav.push("d delete log");
+        nav.push("r refresh");
         nav.push("q/esc back");
         let footer = nav.join(" · ").dimmed().to_string();
 
@@ -270,6 +312,8 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
                             .interact_opt()?
                         {
                             super::move_stage(&sponsor.id, STATUSES[selection]).await?;
+                            mutated = true;
+                            invalidate_current = true;
                         }
                         break;
                     }
@@ -308,6 +352,8 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
                                 Some(organizers[idx - 1].id.as_str())
                             };
                             super::assign(&sponsor.id, speaker_id).await?;
+                            mutated = true;
+                            invalidate_current = true;
                         }
                         break;
                     }
@@ -321,6 +367,8 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
                                 description: note,
                             };
                             super::add_note(note_args).await?;
+                            mutated = true;
+                            invalidate_current = true;
                         }
                         break;
                     }
@@ -336,6 +384,10 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
                             json: false,
                         };
                         super::email::run(email_args).await?;
+                        // An email logs an activity, so both the row and the
+                        // record can have moved.
+                        mutated = true;
+                        invalidate_current = true;
                         break;
                     }
                     Key::Char('d') => {
@@ -399,13 +451,21 @@ async fn show_detail_loop(client: &TrpcClient, ids: &[&str], start: usize) -> Re
                                 .interact()?
                             {
                                 super::delete_activity(&activity.id, true).await?;
+                                mutated = true;
+                                invalidate_current = true;
                             }
                         }
                         break;
                     }
+                    Key::Char('r') => {
+                        // Explicit re-read of this record, for when something
+                        // may have changed outside this session.
+                        invalidate_current = true;
+                        break;
+                    }
                     Key::Escape | Key::Char('q') => {
                         pager.clear()?;
-                        return Ok(idx);
+                        return Ok((idx, mutated));
                     }
                     _ => {}
                 },

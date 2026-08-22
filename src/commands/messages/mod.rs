@@ -125,9 +125,13 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    let subject_raw = convo.conversation.subject.as_deref().unwrap_or("No subject");
+    let subject_raw = convo
+        .conversation
+        .subject
+        .as_deref()
+        .unwrap_or("No subject");
     let subject_safe = console::strip_ansi_codes(subject_raw);
-    
+
     println!(
         "{} {}\n{}",
         "Thread:".bold().cyan(),
@@ -156,7 +160,7 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
         let author_safe = console::strip_ansi_codes(author_raw);
         let date = msg.created_at.as_str();
         println!("{} [{}]", author_safe.bold().blue(), date.dimmed());
-        
+
         let body_safe = console::strip_ansi_codes(&msg.body);
         println!("{}\n", body_safe);
     }

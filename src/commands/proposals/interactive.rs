@@ -261,13 +261,28 @@ async fn show_detail_loop(
     let reviewer_name = config::load().ok().and_then(|c| c.name);
     let mut idx = start;
     let total = proposal_ids.len();
+    // Proposals opened in this session are kept, so paging back and forth with
+    // ←/→ does not re-read the same record. A submitted review drops its entry.
+    let mut cache: std::collections::HashMap<String, Proposal> = std::collections::HashMap::new();
+    let mut invalidate_current = false;
 
     loop {
-        let sp = ui::spinner("Loading…");
-        let proposal = super::fetch_one(client, proposal_ids[idx]).await?;
-        sp.finish_and_clear();
+        let id = proposal_ids[idx].to_string();
+        if invalidate_current {
+            cache.remove(&id);
+            invalidate_current = false;
+        }
+        if !cache.contains_key(&id) {
+            let sp = ui::spinner("Loading…");
+            let fetched = super::fetch_one(client, &id).await?;
+            sp.finish_and_clear();
+            cache.insert(id.clone(), fetched);
+        }
+        let Some(proposal) = cache.get(&id) else {
+            continue;
+        };
 
-        let content = display::render_proposal_detail(&proposal);
+        let content = display::render_proposal_detail(proposal);
 
         let mut nav = vec![];
         if idx > 0 {
@@ -277,7 +292,13 @@ async fn show_detail_loop(
             nav.push("→ next");
         }
         let mut nav_full = nav.clone();
-        nav_full.extend(["↑↓/jk scroll", "^u/^d half-page", "r review", "q/esc back"]);
+        nav_full.extend([
+            "↑↓/jk scroll",
+            "^u/^d half-page",
+            "r review",
+            "R refresh",
+            "q/esc back",
+        ]);
         let footer_measure = nav_full.join(" · ");
 
         let mut pager = ui::Pager::new(&content, &footer_measure);
@@ -287,6 +308,7 @@ async fn show_detail_loop(
             nav.push("^u/^d half-page");
         }
         nav.push("r review");
+        nav.push("R refresh");
         nav.push("q/esc back");
         let footer = nav.join(" · ").dimmed().to_string();
 
@@ -320,8 +342,16 @@ async fn show_detail_loop(
                     }
                     Key::Char('r') => {
                         println!();
-                        prompt_and_submit_review(client, &proposal, reviewer_name.as_deref())
+                        prompt_and_submit_review(client, proposal, reviewer_name.as_deref())
                             .await?;
+                        // The review is part of the record, so re-read it.
+                        invalidate_current = true;
+                        break;
+                    }
+                    Key::Char('R') => {
+                        // Explicit re-read, for when something may have changed
+                        // outside this session.
+                        invalidate_current = true;
                         break;
                     }
                     Key::Escape | Key::Char('q') => {
