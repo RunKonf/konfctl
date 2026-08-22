@@ -57,6 +57,75 @@ const TABS: &[InboxView] = &[
     InboxView::Archived,
 ];
 
+/// How often the visible inbox tab is polled while the session is active.
+///
+/// An inbox is a human-timescale surface, so a 45s cadence keeps worst-case
+/// staleness under a minute while cutting background traffic 4.5x versus the
+/// previous 10s poll. `R` forces an immediate refresh for the impatient.
+const REFRESH_INTERVAL: Duration = Duration::from_secs(45);
+
+/// How long the TUI keeps polling after the last keypress.
+///
+/// A terminal has no window-focus signal, so an unattended session would
+/// otherwise poll forever. Five minutes is long enough to survive reading a
+/// long thread or switching to another window and back, short enough that a
+/// forgotten session costs at most a handful of requests.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Decides when the background refresh may run.
+///
+/// Kept free of I/O so the stop *and* resume paths are unit-testable: every
+/// method takes `now` explicitly instead of reading the clock.
+struct RefreshPolicy {
+    last_refresh: std::time::Instant,
+    last_input: std::time::Instant,
+    idle: bool,
+}
+
+impl RefreshPolicy {
+    fn new(now: std::time::Instant) -> Self {
+        Self {
+            last_refresh: now,
+            last_input: now,
+            idle: false,
+        }
+    }
+
+    /// Returns `true` when the periodic refresh should fire.
+    ///
+    /// Going idle only suppresses the *timer*; it never latches, because
+    /// `note_input` unconditionally clears the flag.
+    fn tick(&mut self, now: std::time::Instant) -> bool {
+        if now.duration_since(self.last_input) >= IDLE_TIMEOUT {
+            self.idle = true;
+            return false;
+        }
+        if now.duration_since(self.last_refresh) >= REFRESH_INTERVAL {
+            self.last_refresh = now;
+            return true;
+        }
+        false
+    }
+
+    /// Records user interaction. Returns `true` if the session had gone idle
+    /// and therefore needs an immediate catch-up refresh.
+    fn note_input(&mut self, now: std::time::Instant) -> bool {
+        let was_idle = self.idle;
+        self.last_input = now;
+        self.idle = false;
+        if was_idle {
+            self.last_refresh = now;
+        }
+        was_idle
+    }
+
+    /// Restarts the timer after a refresh triggered by something other than
+    /// the tick (tab switch, mutation, manual `R`).
+    fn note_refresh(&mut self, now: std::time::Instant) {
+        self.last_refresh = now;
+    }
+}
+
 pub async fn run(client: &TrpcClient, initial_conversations: Vec<ConversationRow>) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -119,11 +188,15 @@ async fn run_app(
     let mut composing_reply = false;
     let mut confirm_send = false;
     let mut reply_buffer = String::new();
-    let mut last_refresh = std::time::Instant::now();
+    let mut refresh = RefreshPolicy::new(std::time::Instant::now());
+    // `lastMessageAt` of the row backing `active_thread`, so a background list
+    // refresh only re-reads the thread when its content actually moved.
+    let mut active_thread_stamp: Option<String> = None;
 
     // Load initial thread if available
     if let Some(first) = conversations.first() {
         active_thread_id = Some(first.id.clone());
+        active_thread_stamp = Some(first.last_message_at.clone());
         scroll_to_bottom = true;
         loading_thread = true;
         let c = client.clone();
@@ -396,7 +469,7 @@ async fn run_app(
 
             // FOOTER: Global Hints
             let hints = Span::styled(
-                " [q/Esc] Quit  [Tab] View  [j/k] List  [^u/^d] Scroll  [n] New  [r] Reply  [s] Status  [a] Archive ",
+                " [q/Esc] Quit  [Tab] View  [j/k] List  [^u/^d] Scroll  [n] New  [r] Reply  [R] Refresh  [s] Status  [a] Archive ",
                 Style::default().fg(Color::DarkGray).bg(Color::Black)
             );
             f.render_widget(Paragraph::new(Line::from(hints)), chunks[2]);
@@ -405,6 +478,14 @@ async fn run_app(
         if let Some(event) = rx.recv().await {
             match event {
                 AppEvent::Input(key) => {
+                    // Any keypress is the only "session is attended" signal a
+                    // terminal gives us. Coming back from idle refreshes at
+                    // once so the user never reads stale data.
+                    if refresh.note_input(std::time::Instant::now()) {
+                        loading_list = true;
+                        spawn_list_fetch(&client, &tx, TABS[tab_index]);
+                    }
+
                     if composing_reply {
                         match key.code {
                             KeyCode::Esc => {
@@ -460,6 +541,11 @@ async fn run_app(
 
                     match key.code {
                         KeyCode::Char('q') => return Ok(()),
+                        KeyCode::Char('R') => {
+                            loading_list = true;
+                            refresh.note_refresh(std::time::Instant::now());
+                            spawn_list_fetch(&client, &tx, TABS[tab_index]);
+                        }
                         KeyCode::Char('n') => {
                             let _ = disable_raw_mode();
                             let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
@@ -592,13 +678,8 @@ async fn run_app(
                             tab_index = (tab_index + 1) % TABS.len();
                             list_state.select(Some(0));
                             loading_list = true;
-                            let view = TABS[tab_index];
-                            let c = client.clone();
-                            let tx = tx.clone();
-                            tokio::spawn(async move {
-                                let res = fetch_list(&c, view).await;
-                                let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
-                            });
+                            refresh.note_refresh(std::time::Instant::now());
+                            spawn_list_fetch(&client, &tx, TABS[tab_index]);
                         }
                         KeyCode::BackTab => {
                             tab_index = if tab_index == 0 {
@@ -608,13 +689,8 @@ async fn run_app(
                             };
                             list_state.select(Some(0));
                             loading_list = true;
-                            let view = TABS[tab_index];
-                            let c = client.clone();
-                            let tx = tx.clone();
-                            tokio::spawn(async move {
-                                let res = fetch_list(&c, view).await;
-                                let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
-                            });
+                            refresh.note_refresh(std::time::Instant::now());
+                            spawn_list_fetch(&client, &tx, TABS[tab_index]);
                         }
                         KeyCode::Up | KeyCode::Char('k') => {
                             if active_pane == ActivePane::Thread {
@@ -635,6 +711,8 @@ async fn run_app(
                                 // Load thread
                                 let id = conversations[i].id.clone();
                                 active_thread_id = Some(id.clone());
+                                active_thread_stamp =
+                                    Some(conversations[i].last_message_at.clone());
                                 active_thread_error = None;
                                 thread_scroll = 0;
                                 scroll_to_bottom = true;
@@ -666,6 +744,8 @@ async fn run_app(
                                 // Load thread
                                 let id = conversations[i].id.clone();
                                 active_thread_id = Some(id.clone());
+                                active_thread_stamp =
+                                    Some(conversations[i].last_message_at.clone());
                                 active_thread_error = None;
                                 thread_scroll = 0;
                                 scroll_to_bottom = true;
@@ -721,24 +801,38 @@ async fn run_app(
 
                                     // Load selected thread
                                     let id = conversations[new_idx].id.clone();
-                                    if active_thread_id.as_deref() != Some(&*id) {
+                                    let stamp = conversations[new_idx].last_message_at.clone();
+                                    let selection_changed =
+                                        active_thread_id.as_deref() != Some(&*id);
+                                    if selection_changed {
                                         active_thread_id = Some(id.clone());
                                         active_thread_error = None;
                                         thread_scroll = 0;
                                         scroll_to_bottom = true;
                                         loading_thread = true;
                                     }
-                                    // Always fetch it (quiet refresh if same)
-                                    let c = client.clone();
-                                    let tx = tx.clone();
-                                    tokio::spawn(async move {
-                                        let r = fetch_thread(&c, &id).await;
-                                        let _ = tx.send(AppEvent::ThreadLoaded(id, r));
-                                    });
+                                    // Only re-read the thread when it can have
+                                    // changed: a different conversation, a newer
+                                    // message, or nothing loaded yet. A list poll
+                                    // over an unchanged inbox now costs one
+                                    // request instead of three or four.
+                                    if selection_changed
+                                        || active_thread.is_none()
+                                        || active_thread_stamp.as_deref() != Some(&*stamp)
+                                    {
+                                        active_thread_stamp = Some(stamp);
+                                        let c = client.clone();
+                                        let tx = tx.clone();
+                                        tokio::spawn(async move {
+                                            let r = fetch_thread(&c, &id).await;
+                                            let _ = tx.send(AppEvent::ThreadLoaded(id, r));
+                                        });
+                                    }
                                 } else {
                                     list_state.select(None);
                                     active_thread = None;
                                     active_thread_id = None;
+                                    active_thread_stamp = None;
                                 }
                             }
                             Err(_) => {
@@ -764,21 +858,33 @@ async fn run_app(
                     }
                 }
                 AppEvent::Tick => {
-                    if last_refresh.elapsed() >= std::time::Duration::from_secs(10) {
-                        last_refresh = std::time::Instant::now();
-                        let view = TABS[tab_index];
-                        let c = client.clone();
-                        let tx = tx.clone();
-                        // Quietly fetch without blocking UI
-                        tokio::spawn(async move {
-                            let res = fetch_list(&c, view).await;
-                            let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
-                        });
+                    // Never poll behind a reply the user is still typing: the
+                    // composer owns the screen and a refresh could swap the
+                    // thread underneath it.
+                    if !composing_reply && refresh.tick(std::time::Instant::now()) {
+                        // Only the visible tab is polled; the other four are
+                        // fetched on demand when tabbed to.
+                        spawn_list_fetch(&client, &tx, TABS[tab_index]);
                     }
                 }
             }
         }
     }
+}
+
+/// Fetches one inbox view in the background and posts the result back to the
+/// event loop.
+fn spawn_list_fetch(
+    client: &Arc<TrpcClient>,
+    tx: &mpsc::UnboundedSender<AppEvent>,
+    view: InboxView,
+) {
+    let c = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        let res = fetch_list(&c, view).await;
+        let _ = tx.send(AppEvent::ConversationsLoaded(view, res));
+    });
 }
 
 async fn fetch_list(client: &TrpcClient, view: InboxView) -> Result<Vec<ConversationRow>> {
@@ -872,4 +978,87 @@ pub fn format_item(convo: &ConversationRow) -> String {
         status,
         unread
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{IDLE_TIMEOUT, REFRESH_INTERVAL, RefreshPolicy};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn does_not_refresh_before_the_interval() {
+        let t0 = Instant::now();
+        let mut p = RefreshPolicy::new(t0);
+        assert!(!p.tick(t0 + REFRESH_INTERVAL / 2));
+    }
+
+    #[test]
+    fn refreshes_once_per_interval() {
+        let t0 = Instant::now();
+        let mut p = RefreshPolicy::new(t0);
+        assert!(p.tick(t0 + REFRESH_INTERVAL));
+        // Timer restarted, so the very next tick must not fire again.
+        assert!(!p.tick(t0 + REFRESH_INTERVAL + Duration::from_millis(200)));
+        assert!(p.tick(t0 + REFRESH_INTERVAL + REFRESH_INTERVAL));
+    }
+
+    #[test]
+    fn stops_refreshing_once_idle() {
+        let t0 = Instant::now();
+        let mut p = RefreshPolicy::new(t0);
+        assert!(!p.tick(t0 + IDLE_TIMEOUT));
+        // Hours later it is still silent, no matter how many intervals passed.
+        assert!(!p.tick(t0 + IDLE_TIMEOUT + Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn resumes_immediately_on_the_next_keypress() {
+        let t0 = Instant::now();
+        let mut p = RefreshPolicy::new(t0);
+        let idle_at = t0 + IDLE_TIMEOUT;
+        assert!(!p.tick(idle_at));
+
+        // The keypress that wakes the session asks for a catch-up refresh...
+        assert!(p.note_input(idle_at + Duration::from_secs(10)));
+        // ...and the periodic timer is live again afterwards.
+        assert!(!p.note_input(idle_at + Duration::from_secs(11)));
+        assert!(!p.tick(idle_at + Duration::from_secs(11)));
+        assert!(p.tick(idle_at + Duration::from_secs(10) + REFRESH_INTERVAL));
+    }
+
+    #[test]
+    fn typing_keeps_the_session_awake_indefinitely() {
+        let t0 = Instant::now();
+        let mut p = RefreshPolicy::new(t0);
+        let mut now = t0;
+        // One keypress per minute for two hours: never idles, never asks for a
+        // catch-up refresh, and still polls on schedule.
+        let mut refreshes = 0;
+        for _ in 0..120 {
+            now += Duration::from_secs(60);
+            assert!(!p.note_input(now));
+            if p.tick(now) {
+                refreshes += 1;
+            }
+        }
+        assert_eq!(refreshes, 120);
+    }
+
+    #[test]
+    fn note_refresh_restarts_the_timer() {
+        let t0 = Instant::now();
+        let mut p = RefreshPolicy::new(t0);
+        let half = REFRESH_INTERVAL / 2;
+        p.note_refresh(t0 + half);
+        assert!(!p.tick(t0 + REFRESH_INTERVAL));
+        assert!(p.tick(t0 + half + REFRESH_INTERVAL));
+    }
+
+    #[test]
+    fn idle_timeout_outlives_a_long_read() {
+        // Reading a thread without touching a key must not trip the guard in
+        // under five minutes.
+        assert!(IDLE_TIMEOUT >= Duration::from_secs(300));
+        assert!(REFRESH_INTERVAL < IDLE_TIMEOUT);
+    }
 }

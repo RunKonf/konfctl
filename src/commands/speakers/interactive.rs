@@ -20,6 +20,10 @@ pub async fn list_interactive(
     let hints = "↑↓ navigate · type to search · enter select · esc quit".dimmed();
     let mut search: Option<String> = None;
     let mut cursor = 0usize;
+    // Rendered detail pages, keyed by speaker id. The detail view is read-only,
+    // so re-opening a speaker in the same session costs nothing.
+    let mut cache: std::collections::HashMap<String, (String, String)> =
+        std::collections::HashMap::new();
 
     loop {
         let filtered: Vec<&SpeakerSummary> = initial_speakers
@@ -74,8 +78,21 @@ pub async fn list_interactive(
         match selection {
             Some(idx) => {
                 cursor = idx;
-                let speaker_id = &filtered[idx].id;
-                show_detail_loop(client, speaker_id).await?;
+                let speaker_id = filtered[idx].id.clone();
+                loop {
+                    if !cache.contains_key(&speaker_id) {
+                        let detail = load_detail(client, &speaker_id).await?;
+                        cache.insert(speaker_id.clone(), detail);
+                    }
+                    let Some((name, content)) = cache.get(&speaker_id) else {
+                        break;
+                    };
+                    if !show_detail_loop(name, content)? {
+                        break;
+                    }
+                    // `r`: drop the cached page and render a fresh read.
+                    cache.remove(&speaker_id);
+                }
             }
             None => break,
         }
@@ -84,7 +101,8 @@ pub async fn list_interactive(
     Ok(())
 }
 
-async fn show_detail_loop(client: &TrpcClient, speaker_id: &str) -> Result<()> {
+/// Fetches a speaker and renders its detail page, returning `(name, content)`.
+async fn load_detail(client: &TrpcClient, speaker_id: &str) -> Result<(String, String)> {
     let sp = ui::spinner("Loading speaker details…");
     let speaker = super::fetch_one(client, speaker_id).await?;
     let speaker_talks = super::fetch_talks_for_speaker(client, speaker_id).await?;
@@ -134,21 +152,28 @@ async fn show_detail_loop(client: &TrpcClient, speaker_id: &str) -> Result<()> {
         }
     }
 
-    let footer = "q/esc back".dimmed().to_string();
-    let mut pager = ui::Pager::new(&content, &footer);
+    Ok((speaker.name.clone(), content))
+}
+
+/// Pages through an already-rendered detail view. Returns `true` if the user
+/// asked for the record to be re-read.
+fn show_detail_loop(name: &str, content: &str) -> Result<bool> {
+    let footer = "r refresh · q/esc back".dimmed().to_string();
+    let mut pager = ui::Pager::new(content, &footer);
 
     loop {
-        pager.render(
-            &format!("Speaker: {}", speaker.name).bold().to_string(),
-            &footer,
-        )?;
+        pager.render(&format!("Speaker: {name}").bold().to_string(), &footer)?;
 
         match pager.handle_key()? {
             ui::pager::Action::Redraw => {}
             ui::pager::Action::Custom(key) => match key {
+                Key::Char('r') => {
+                    pager.clear()?;
+                    return Ok(true);
+                }
                 Key::Escape | Key::Char('q') => {
                     pager.clear()?;
-                    return Ok(());
+                    return Ok(false);
                 }
                 _ => {}
             },
