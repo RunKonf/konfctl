@@ -252,6 +252,33 @@ async fn sponsors_get_not_found_e2e() {
 async fn sponsors_move_stage_e2e() {
     let server = MockServer::start().await;
 
+    Mock::given(method("GET"))
+        .and(path("/api/trpc/sponsor.crm.getById"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": {
+                "data": {
+                    "_id": "sfc-111",
+                    "status": "closed-won",
+                    "contractStatus": "contract-signed",
+                    "invoiceStatus": "paid",
+                    "sponsor": {"_id": "sp-a", "name": "Acme Corp", "website": "https://acme.com"},
+                    "tier": {"_id": "tier-1", "title": "Gold"},
+                    "assignedTo": {"_id": "org-1", "name": "Hans"},
+                    "contactPersons": [
+                        {"name": "Jane Doe", "email": "jane@acme.com", "role": "CTO", "isPrimary": true}
+                    ],
+                    "billing": {"email": "billing@acme.com", "reference": "PO-2025-001"},
+                    "contractValue": 50000.0,
+                    "contractCurrency": "NOK",
+                    "notes": "Long-time partner",
+                    "tags": ["returning", "premium"],
+                    "activityCount": 0
+                }
+            }
+        })))
+        .mount(&server)
+        .await;
+
     Mock::given(method("POST"))
         .and(path("/api/trpc/sponsor.crm.moveStage"))
         .and(body_string_contains("contacted"))
@@ -379,6 +406,33 @@ async fn sponsors_list_filters_e2e() {
 #[tokio::test]
 async fn sponsors_update_fields_e2e() {
     let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/trpc/sponsor.crm.getById"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": {
+                "data": {
+                    "_id": "sfc-111",
+                    "status": "closed-won",
+                    "contractStatus": "contract-signed",
+                    "invoiceStatus": "paid",
+                    "sponsor": {"_id": "sp-a", "name": "Acme Corp", "website": "https://acme.com"},
+                    "tier": {"_id": "tier-1", "title": "Gold"},
+                    "assignedTo": {"_id": "org-1", "name": "Hans"},
+                    "contactPersons": [
+                        {"name": "Jane Doe", "email": "jane@acme.com", "role": "CTO", "isPrimary": true}
+                    ],
+                    "billing": {"email": "billing@acme.com", "reference": "PO-2025-001"},
+                    "contractValue": 50000.0,
+                    "contractCurrency": "NOK",
+                    "notes": "Long-time partner",
+                    "tags": ["returning", "premium"],
+                    "activityCount": 0
+                }
+            }
+        })))
+        .mount(&server)
+        .await;
 
     Mock::given(method("POST"))
         .and(path("/api/trpc/sponsor.crm.update"))
@@ -517,6 +571,43 @@ async fn sponsors_delete_activity_e2e() {
 #[tokio::test]
 async fn sponsors_send_contract_e2e() {
     let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/trpc/sponsor.crm.getById"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": {
+                "data": {
+                    "_id": "sfc-111",
+                    "status": "closed-won",
+                    "contractStatus": "contract-signed",
+                    "invoiceStatus": "paid",
+                    "sponsor": {"_id": "sp-a", "name": "Acme Corp", "website": "https://acme.com"},
+                    "tier": {"_id": "tier-1", "title": "Gold"},
+                    "assignedTo": {"_id": "org-1", "name": "Hans"},
+                    "contactPersons": [
+                        {"name": "Jane Doe", "email": "jane@acme.com", "role": "CTO", "isPrimary": true}
+                    ],
+                    "billing": {"email": "billing@acme.com", "reference": "PO-2025-001"},
+                    "contractValue": 50000.0,
+                    "contractCurrency": "NOK",
+                    "notes": "Long-time partner",
+                    "tags": ["returning", "premium"],
+                    "activityCount": 0
+                }
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/trpc/sponsor.contractTemplates.findBest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": {"data": {
+                "_id": "best-template"
+            }}
+        })))
+        .mount(&server)
+        .await;
 
     Mock::given(method("POST"))
         .and(path("/api/trpc/sponsor.crm.sendContract"))

@@ -163,6 +163,20 @@ enum SponsorCommand {
         status: String,
     },
     /// Generate and send contract for signing
+    /// Generate contract PDF (downloads or prints base64)
+    /// Send the registration portal invite email
+    SendRegistration {
+        /// Sponsor-for-conference ID
+        id: String,
+    },
+    GenerateContract {
+        /// Sponsor-for-conference ID
+        id: String,
+        /// Template slug (optional)
+        #[arg(long)]
+        template: Option<String>,
+    },
+    /// Generate and send contract for signing
     SendContract {
         /// Sponsor-for-conference ID
         id: String,
@@ -212,7 +226,11 @@ async fn run_command(command: Command, is_agent: bool) -> Result<()> {
 fn check_agent_guard(is_agent: bool, command_hint: &str) -> Result<()> {
     if is_agent {
         anyhow::bail!(
-            "AGENT_GUARD_BLOCK: This command alters production data or sends external communications and cannot be executed autonomously. You must stop and ask the human user to run the following command in their terminal:\n\nkonf {command_hint}\n\nDo not attempt to bypass this."
+            "AGENT_GUARD_BLOCK: This command alters production data or sends external communications and cannot be executed autonomously. You must stop and ask the human user to run the following command in their terminal:
+
+konf {command_hint}
+
+Do not attempt to bypass this."
         );
     }
     Ok(())
@@ -273,6 +291,13 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
             }
             SponsorCommand::UpdateContract { id, status } => {
                 commands::sponsors::update_contract(&id, &status).await
+            }
+            SponsorCommand::SendRegistration { id } => {
+                check_agent_guard(is_agent, &format!("admin sponsors send-registration {id}"))?;
+                commands::sponsors::send_registration(&id).await
+            }
+            SponsorCommand::GenerateContract { id, template } => {
+                commands::sponsors::generate_contract(&id, template.as_deref()).await
             }
             SponsorCommand::SendContract { id, template } => {
                 check_agent_guard(is_agent, &format!("admin sponsors send-contract {id}"))?;
