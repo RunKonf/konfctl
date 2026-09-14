@@ -1,3 +1,24 @@
+pub fn find_sponsor_by_name<'a>(
+    sponsors: &'a [SponsorForConference],
+    name: &str,
+) -> Option<Vec<&'a SponsorForConference>> {
+    let lower_input = name.to_lowercase();
+    let matches: Vec<_> = sponsors
+        .iter()
+        .filter(|s| {
+            s.sponsor
+                .as_ref()
+                .is_some_and(|sp| sp.name.to_lowercase() == lower_input)
+        })
+        .collect();
+
+    if matches.is_empty() {
+        None
+    } else {
+        Some(matches)
+    }
+}
+
 mod args;
 pub mod email;
 mod interactive;
@@ -12,6 +33,46 @@ use crate::display;
 use crate::types::SponsorForConference;
 
 // ── API helpers ──────────────────────────────────────────────────────────────
+
+async fn resolve_id(client: &crate::client::TrpcClient, id_or_name: &str) -> Result<String> {
+    // 1. Try to fetch it directly as an ID. If it succeeds, it's an ID!
+    if let Ok(sponsor) = fetch_one(client, id_or_name).await {
+        return Ok(sponsor.id.clone());
+    }
+
+    // 2. If it fails, maybe it's a name. Fetch all and search by name.
+    let all = fetch_all(
+        client,
+        &ListArgs {
+            view: None,
+            search: None,
+            status: None,
+            mine: false,
+            assigned_to: None,
+            unassigned: false,
+            tags: None,
+            tiers: None,
+            sort_by: None,
+            sort_order: None,
+            stale_days: None,
+            due: false,
+            has_follow_up: false,
+            has_contact: false,
+            compact: false,
+            limit: None,
+            json: false,
+        },
+    )
+    .await?;
+
+    let matches = find_sponsor_by_name(&all, id_or_name).unwrap_or_default();
+
+    match matches.len() {
+        1 => Ok(matches[0].id.clone()),
+        0 => anyhow::bail!("No sponsor found matching '{id_or_name}' (and it is not a valid ID)"),
+        _ => anyhow::bail!("Multiple sponsors found matching '{id_or_name}'. Please use exact ID."),
+    }
+}
 
 pub async fn fetch_all(client: &TrpcClient, args: &ListArgs) -> Result<Vec<SponsorForConference>> {
     let sponsors: Vec<SponsorForConference> = client
@@ -93,6 +154,8 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
 pub async fn get(id: &str, json: bool) -> Result<()> {
     let client = require_client()?;
+    let resolved_id = resolve_id(&client, id).await?;
+    let id = &resolved_id;
     let sponsor = fetch_one(&client, id).await?;
     if json || crate::is_agent() {
         if crate::is_agent() {
@@ -108,11 +171,12 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
 
 pub async fn update(args: UpdateArgs) -> Result<()> {
     let client = require_client()?;
+    let resolved_id = resolve_id(&client, &args.id).await?;
     client
         .mutate::<serde_json::Value>(
             "sponsor.crm.update",
             &serde_json::json!({
-                "id": args.id,
+                "id": resolved_id,
                 "nextFollowUpAt": args.next_follow_up,
                 "linkedinUrl": args.linkedin_url,
                 "notes": args.notes,
@@ -252,6 +316,9 @@ pub async fn add_note(args: NoteArgs) -> Result<()> {
 
 pub async fn move_stage(id: &str, stage: crate::types::SponsorStatus) -> Result<()> {
     let client = require_client()?;
+    let resolved_id = resolve_id(&client, id).await?;
+    let id = &resolved_id;
+    let client = require_client()?;
     client
         .mutate::<serde_json::Value>(
             "sponsor.crm.moveStage",
@@ -319,14 +386,105 @@ pub async fn update_contract(id: &str, status: &str) -> Result<()> {
     Ok(())
 }
 
+pub async fn send_registration(id: &str) -> Result<()> {
+    let client = require_client()?;
+    let resolved_id = resolve_id(&client, id).await?;
+
+    let sp = crate::ui::spinner("Sending registration invite...");
+    client
+        .mutate::<serde_json::Value>(
+            "registration.sendPortalInvite",
+            &serde_json::json!({
+                "sponsorForConferenceId": resolved_id,
+            }),
+        )
+        .await?;
+
+    sp.finish_and_clear();
+
+    if crate::is_agent() {
+        println!("{}", serde_json::json!({ "ok": true, "id": id }));
+    } else {
+        println!("Registration invite sent successfully.");
+    }
+    Ok(())
+}
+pub async fn generate_contract(id: &str, template: Option<&str>) -> Result<()> {
+    let client = require_client()?;
+    let resolved_id = resolve_id(&client, id).await?;
+
+    // We need the sponsor to get the tier for findBest
+    let sponsor = fetch_one(&client, &resolved_id).await?;
+    let tier_id = sponsor.tier.as_ref().map(|t| t.id.clone());
+
+    let template_id = if let Some(t) = template {
+        t.to_string()
+    } else {
+        let find_best_input = serde_json::json!({
+            "tierId": tier_id,
+        });
+        let best_template: serde_json::Value = client
+            .query("sponsor.contractTemplates.findBest", Some(&find_best_input))
+            .await?;
+        if best_template.is_null() {
+            anyhow::bail!("No suitable contract template found. Please specify one manually.");
+        }
+        best_template["_id"].as_str().unwrap().to_string()
+    };
+
+    let sp = crate::ui::spinner("Generating contract PDF...");
+    let response: serde_json::Value = client
+        .mutate(
+            "sponsor.crm.generatePdf",
+            &serde_json::json!({
+                "sponsorForConferenceId": resolved_id,
+                "templateId": template_id,
+            }),
+        )
+        .await?;
+
+    sp.finish_and_clear();
+
+    if crate::is_agent() {
+        println!("{}", serde_json::json!({ "ok": true, "id": id }));
+    } else {
+        println!("Contract generated successfully.");
+        if let Some(base64) = response["pdf"].as_str() {
+            println!("(Base64 data length: {})", base64.len());
+        }
+    }
+    Ok(())
+}
+
 pub async fn send_contract(id: &str, template: Option<&str>) -> Result<()> {
     let client = require_client()?;
+    let resolved_id = resolve_id(&client, id).await?;
+
+    // We need the sponsor to get the tier for findBest
+    let sponsor = fetch_one(&client, &resolved_id).await?;
+    let tier_id = sponsor.tier.as_ref().map(|t| t.id.clone());
+
+    let template_id = if let Some(t) = template {
+        t.to_string()
+    } else {
+        let find_best_input = serde_json::json!({
+            "tierId": tier_id,
+        });
+        let best_template: serde_json::Value = client
+            .query("sponsor.contractTemplates.findBest", Some(&find_best_input))
+            .await?;
+        if best_template.is_null() {
+            anyhow::bail!("No suitable contract template found. Please specify one manually.");
+        }
+        best_template["_id"].as_str().unwrap().to_string()
+    };
+
     client
         .mutate::<serde_json::Value>(
             "sponsor.crm.sendContract",
             &serde_json::json!({
-                "id": id,
-                "templateSlug": template,
+                "sponsorForConferenceId": resolved_id,
+                "templateId": template_id,
             }),
         )
         .await?;
@@ -462,4 +620,69 @@ pub async fn create(args: CreateArgs) -> Result<()> {
         println!("Sponsor '{}' added to CRM as {}.", args.name, args.status);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{SponsorForConference, SponsorRef};
+
+    fn make_sponsor(id: &str, name: &str) -> SponsorForConference {
+        SponsorForConference {
+            id: id.to_string(),
+            status: crate::types::SponsorStatus::Prospect,
+            contract_status: Some("none".to_string()),
+            invoice_status: Some("not-sent".to_string()),
+            sponsor: Some(SponsorRef {
+                id: "s1".to_string(),
+                name: name.to_string(),
+                website: None,
+                linkedin_url: None,
+            }),
+            tier: None,
+            assigned_to: None,
+            contact_persons: vec![],
+            billing: None,
+            contract_value: None,
+            contract_currency: Some("NOK".to_string()),
+            notes: None,
+            tags: vec![],
+            contract_signed_at: None,
+            invoice_sent_at: None,
+            invoice_paid_at: None,
+            activities: vec![],
+            last_activity: None,
+            activity_count: Some(0),
+            next_follow_up_at: None,
+            outreach_count: None,
+            contact_initiated_at: None,
+        }
+    }
+
+    #[test]
+    fn test_find_sponsor_by_name() {
+        let sponsors = vec![
+            make_sponsor("1", "Acme Corp"),
+            make_sponsor("2", "Global Tech"),
+            make_sponsor("3", "global tech"),
+        ];
+
+        // Exact match
+        let matches = find_sponsor_by_name(&sponsors, "Acme Corp").unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].id, "1");
+
+        // Case insensitive match
+        let matches = find_sponsor_by_name(&sponsors, "acme CORP").unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].id, "1");
+
+        // Multiple matches
+        let matches = find_sponsor_by_name(&sponsors, "Global Tech").unwrap();
+        assert_eq!(matches.len(), 2);
+
+        // No match
+        let matches = find_sponsor_by_name(&sponsors, "Unknown");
+        assert!(matches.is_none());
+    }
 }
