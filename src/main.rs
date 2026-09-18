@@ -66,8 +66,21 @@ enum AdminCommand {
     /// Manage schedules
     #[command(subcommand)]
     Schedule(commands::schedule::ScheduleCommand),
+    /// Ticket sales figures
+    #[command(subcommand)]
+    Tickets(TicketCommand),
     /// Show conference status summary (sponsors, proposals, tickets, targets)
     Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum TicketCommand {
+    /// Show ticket sales, participants and complimentary allocation
+    Stats {
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -381,6 +394,9 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                 check_agent_guard(is_agent, "admin schedule save")?;
                 commands::schedule::save(&payload).await
             }
+        },
+        AdminCommand::Tickets(cmd) => match cmd {
+            TicketCommand::Stats { json } => commands::admin_tickets::stats(json).await,
         },
         AdminCommand::Status { json } => commands::admin_status::run(json).await,
     }

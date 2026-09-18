@@ -2,6 +2,7 @@ use konfctl::client::TrpcClient;
 use konfctl::commands::{proposals, sponsors};
 use konfctl::config::{self, Config};
 use konfctl::template;
+use konfctl::types::TicketStats;
 use tempfile::TempDir;
 use wiremock::matchers::{body_string_contains, method, path, query_param_contains};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -349,6 +350,37 @@ async fn sponsors_sync_audience_e2e() {
 
     let result = sponsors::sync_audience().await;
     assert!(result.is_ok());
+}
+
+/// The procedure name and the tRPC envelope, over real HTTP. The payload's
+/// shape is covered by the unit tests in `types::tickets`.
+#[tokio::test]
+async fn tickets_admin_summary_e2e() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/trpc/tickets.admin.summary"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": {"data": {
+                "state": "disabled",
+                "providerType": "checkin",
+                "providerLabel": "Checkin"
+            }}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = TrpcClient::new(&server.uri(), "test-token");
+    let stats: TicketStats = client
+        .query("tickets.admin.summary", None)
+        .await
+        .expect("summary query");
+
+    match stats {
+        TicketStats::Disabled(access) => assert_eq!(access.provider_label, "Checkin"),
+        other => panic!("expected disabled, got {other:?}"),
+    }
 }
 
 #[tokio::test]

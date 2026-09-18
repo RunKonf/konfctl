@@ -254,7 +254,7 @@ fn format_currency(amount: f64, currency: &str) -> String {
     format!("{formatted} {currency}")
 }
 
-fn format_thousands(n: i64) -> String {
+pub(crate) fn format_thousands(n: i64) -> String {
     let s = n.to_string();
     let bytes: Vec<u8> = s.bytes().rev().collect();
     let chunks: Vec<String> = bytes

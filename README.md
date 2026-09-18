@@ -112,6 +112,9 @@ konf admin sponsors email <id> --template <slug>  # use specific template
 konf admin sponsors email <id> --message "Hello"  # send direct message
 konf admin sponsors email <id> --dry-run          # preview without sending
 
+konf admin tickets stats           # sales, participants, complimentary seats
+konf admin tickets stats --json    # the procedure's payload, unchanged
+
 konf logout         # clear credentials
 ```
 
