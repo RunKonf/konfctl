@@ -331,7 +331,7 @@ fn render_sponsor_tiers(buf: &mut String, r: &TicketStatsReady) {
     )
     .unwrap();
     let mut tiers: Vec<_> = r.sponsor_tickets_by_tier.iter().collect();
-    tiers.sort_by(|a, b| b.1.tickets.cmp(&a.1.tickets));
+    tiers.sort_by_key(|(_, data)| std::cmp::Reverse(data.tickets));
     for (tier, data) in tiers {
         writeln!(
             buf,
