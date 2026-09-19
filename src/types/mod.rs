@@ -6,6 +6,7 @@ pub mod schedule;
 pub mod speaker;
 pub mod sponsor;
 pub mod status;
+pub mod tickets;
 
 pub use agent_config::*;
 pub use email_template::*;
@@ -16,6 +17,7 @@ pub use schedule::*;
 pub use speaker::*;
 pub use sponsor::*;
 pub use status::*;
+pub use tickets::*;
 
 use serde::Deserialize;
 

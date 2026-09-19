@@ -4,6 +4,7 @@ use crate::client::TrpcClient;
 use crate::config;
 
 pub mod admin_status;
+pub mod admin_tickets;
 pub mod agent_discovery;
 pub mod agents;
 pub mod featured;
