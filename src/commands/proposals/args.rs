@@ -90,21 +90,27 @@ pub struct CreateArgs {
 
     /// Target audiences (comma-separated)
     #[arg(long, value_delimiter = ',')]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub audiences: Option<Vec<String>>,
 
     /// Topic IDs (comma-separated)
     #[arg(long, value_delimiter = ',')]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub topics: Option<Vec<String>>,
 
     /// Accept Terms of Service
     #[arg(long)]
     pub tos: bool,
 
-    /// Description/Abstract
+    /// Description/Abstract (use @filename or - for stdin)
     #[arg(long)]
     pub description: Option<String>,
 
-    /// Outline
+    /// Capacity for workshops
+    #[arg(long)]
+    pub capacity: Option<u32>,
+
+    /// Outline (use @filename or - for stdin)
     #[arg(long)]
     pub outline: Option<String>,
 }
@@ -168,12 +174,16 @@ pub struct UpdateArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speakers: Option<Vec<String>>,
 
-    /// Description/Abstract
+    /// Description/Abstract (use @filename or - for stdin)
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
-    /// Outline
+    /// Capacity for workshops
+    #[arg(long)]
+    pub capacity: Option<u32>,
+
+    /// Outline (use @filename or - for stdin)
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub outline: Option<String>,

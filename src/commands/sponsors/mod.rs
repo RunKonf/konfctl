@@ -295,13 +295,14 @@ pub async fn history(id: &str, json: bool) -> Result<()> {
 
 pub async fn add_note(args: NoteArgs) -> Result<()> {
     let client = require_client()?;
+    let description = crate::commands::read_string_or_file(args.description)?;
     client
         .mutate::<serde_json::Value>(
             "sponsor.crm.activities.create",
             &serde_json::json!({
                 "sponsorForConferenceId": args.id,
                 "activityType": args.kind,
-                "description": args.description,
+                "description": description,
             }),
         )
         .await?;

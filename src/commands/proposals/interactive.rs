@@ -434,6 +434,7 @@ pub async fn add_wizard(client: &TrpcClient) -> Result<()> {
         audiences: Some(vec!["developer".into()]), // Default for wizard
         topics: Some(vec![]),                      // Logic below will override this
         tos: true,
+        capacity: None,
         description: Some(description),
         outline: Some(outline),
     };

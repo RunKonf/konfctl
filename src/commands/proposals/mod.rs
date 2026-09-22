@@ -48,7 +48,23 @@ pub async fn add(args: CreateArgs) -> Result<()> {
         return interactive::add_wizard(&client).await;
     }
 
+    let mut args = args;
+    if let Some(desc) = args.description {
+        args.description = Some(crate::commands::read_string_or_file(desc)?);
+    }
+    if let Some(out) = args.outline {
+        args.outline = Some(crate::commands::read_string_or_file(out)?);
+    }
     let mut payload = serde_json::to_value(&args)?;
+    if payload
+        .get("audiences")
+        .is_none_or(serde_json::Value::is_null)
+    {
+        payload["audiences"] = serde_json::json!([]);
+    }
+    if payload.get("topics").is_none_or(serde_json::Value::is_null) {
+        payload["topics"] = serde_json::json!([]);
+    }
 
     // Wrap plain text description in a Portable Text array
     if let Some(desc) = args.description {
@@ -153,6 +169,13 @@ pub async fn action(args: ActionArgs) -> Result<()> {
 }
 
 pub async fn update(args: UpdateArgs) -> Result<()> {
+    let mut args = args;
+    if let Some(desc) = args.description {
+        args.description = Some(crate::commands::read_string_or_file(desc)?);
+    }
+    if let Some(out) = args.outline {
+        args.outline = Some(crate::commands::read_string_or_file(out)?);
+    }
     let client = require_client()?;
     client
         .mutate::<serde_json::Value>(
