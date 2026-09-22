@@ -156,8 +156,9 @@ pub async fn delete(id: &str, yes: bool) -> Result<()> {
 
 pub async fn save(payload: &str) -> Result<()> {
     let client = require_client()?;
-    let payload: serde_json::Value =
-        serde_json::from_str(payload).map_err(|e| anyhow::anyhow!("Invalid JSON payload: {e}"))?;
+    let payload_str = crate::commands::read_string_or_file(payload.to_string())?;
+    let payload: serde_json::Value = serde_json::from_str(&payload_str)
+        .map_err(|e| anyhow::anyhow!("Invalid JSON payload: {e}"))?;
 
     let res: serde_json::Value = client.mutate("schedule.save", &payload).await?;
 

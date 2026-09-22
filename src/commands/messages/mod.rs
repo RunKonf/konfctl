@@ -170,13 +170,14 @@ pub async fn get(id: &str, json: bool) -> Result<()> {
 
 pub async fn reply(id: &str, message: &str) -> Result<()> {
     let client = require_client()?;
+    let msg_resolved = crate::commands::read_string_or_file(message.to_string())?;
 
     let _res: serde_json::Value = client
         .mutate(
             "message.send",
             &serde_json::json!({
                 "conversationId": id,
-                "body": message,
+                "body": msg_resolved,
             }),
         )
         .await?;
@@ -191,6 +192,7 @@ pub async fn reply(id: &str, message: &str) -> Result<()> {
 
 pub async fn start_new(speaker_id: &str, subject: &str, message: &str) -> Result<()> {
     let client = require_client()?;
+    let msg_resolved = crate::commands::read_string_or_file(message.to_string())?;
 
     let _res: serde_json::Value = client
         .mutate(
@@ -198,7 +200,7 @@ pub async fn start_new(speaker_id: &str, subject: &str, message: &str) -> Result
             &serde_json::json!({
                 "subject": subject,
                 "recipientSpeakerId": speaker_id,
-                "body": message,
+                "body": msg_resolved,
             }),
         )
         .await?;
