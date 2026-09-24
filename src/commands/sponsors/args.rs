@@ -141,13 +141,17 @@ pub struct UpdateContactsArgs {
     /// Sponsor-for-conference ID
     pub id: String,
 
-    /// New primary contact name
+    /// New contact name
     #[arg(long)]
     pub name: String,
 
-    /// New primary contact email
+    /// New contact email
     #[arg(long)]
     pub email: String,
+
+    /// Add as a secondary contact instead of primary
+    #[arg(long)]
+    pub secondary: bool,
 }
 
 #[derive(Args)]
