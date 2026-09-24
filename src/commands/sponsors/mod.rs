@@ -212,10 +212,12 @@ pub async fn update_contacts(args: UpdateContactsArgs) -> Result<()> {
         .cloned()
         .unwrap_or_default();
 
-    // Unmark existing primary contacts
-    for contact in &mut contact_persons {
-        if let Some(obj) = contact.as_object_mut() {
-            obj.insert("isPrimary".to_string(), serde_json::json!(false));
+    // Unmark existing primary contacts if this is a new primary
+    if !args.secondary {
+        for contact in &mut contact_persons {
+            if let Some(obj) = contact.as_object_mut() {
+                obj.insert("isPrimary".to_string(), serde_json::json!(false));
+            }
         }
     }
 
@@ -223,7 +225,7 @@ pub async fn update_contacts(args: UpdateContactsArgs) -> Result<()> {
         "_key": uuid::Uuid::new_v4().to_string(),
         "name": args.name,
         "email": args.email,
-        "isPrimary": true,
+        "isPrimary": !args.secondary,
     }));
 
     client

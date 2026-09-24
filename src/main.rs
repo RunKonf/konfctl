@@ -138,7 +138,7 @@ enum SponsorCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Bulk overwrite contact persons (replaces all existing)
+    /// Add a new contact to a sponsor
     UpdateContacts(commands::sponsors::UpdateContactsArgs),
     /// Show sponsor history (activities, notes, stage changes)
     History {

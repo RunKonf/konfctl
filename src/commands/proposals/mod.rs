@@ -72,18 +72,18 @@ pub async fn add(args: CreateArgs) -> Result<()> {
         payload["topics"] = serde_json::json!(refs);
     }
 
-    let proposal: Proposal = client.mutate("proposal.admin.create", &payload).await?;
+    let proposal: serde_json::Value = client.mutate("proposal.admin.create", &payload).await?;
+
+    let id = proposal.get("_id").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let title = proposal.get("title").and_then(|v| v.as_str()).unwrap_or("unknown");
 
     if crate::is_agent() {
         println!(
             "{}",
-            serde_json::json!({ "ok": true, "id": proposal.id, "title": proposal.title })
+            serde_json::json!({ "ok": true, "id": id, "title": title })
         );
     } else {
-        println!(
-            "Successfully created proposal {} (ID: {})",
-            proposal.title, proposal.id
-        );
+        println!("Successfully created proposal {title} (ID: {id})");
     }
     Ok(())
 }
