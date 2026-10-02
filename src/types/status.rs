@@ -51,11 +51,8 @@ pub struct TicketSummary {
     pub paid_tickets: usize,
     pub total_revenue: f64,
     pub total_tickets: usize,
-    pub sponsor_tickets: usize,
     pub speaker_tickets: usize,
     pub organizer_tickets: usize,
-    pub free_tickets_claimed: usize,
-    pub free_ticket_claim_rate: f64,
     #[serde(default)]
     pub category_breakdown: std::collections::HashMap<String, usize>,
 }
@@ -119,11 +116,8 @@ mod tests {
                 "paidTickets": 5,
                 "totalRevenue": 12500.0,
                 "totalTickets": 5,
-                "sponsorTickets": 0,
                 "speakerTickets": 5,
                 "organizerTickets": 6,
-                "freeTicketsClaimed": 0,
-                "freeTicketClaimRate": 0.0,
                 "categoryBreakdown": {
                     "Early Bird: Conference Only (1 day)": 4,
                     "Early Bird: Workshop + Conference (2 days)": 1

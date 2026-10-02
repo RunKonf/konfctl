@@ -165,11 +165,8 @@ fn render_tickets(buf: &mut String, tk: &crate::types::TicketSummary) {
     )
     .unwrap();
 
-    let complimentary = tk.sponsor_tickets + tk.speaker_tickets + tk.organizer_tickets;
-    let comp_detail = format!(
-        "{complimentary} (claimed {}, rate {:.1}%)",
-        tk.free_tickets_claimed, tk.free_ticket_claim_rate
-    );
+    let complimentary = tk.speaker_tickets + tk.organizer_tickets;
+    let comp_detail = format!("{complimentary}");
     writeln!(
         buf,
         "  {:<24}{:<6}  {:<24}{comp_detail}",
