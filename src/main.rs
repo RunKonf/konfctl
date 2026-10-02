@@ -69,6 +69,9 @@ enum AdminCommand {
     /// Ticket sales figures
     #[command(subcommand)]
     Tickets(TicketCommand),
+    /// Manage conference topics
+    #[command(subcommand)]
+    Topics(commands::topics::TopicCommand),
     /// Show conference status summary (sponsors, proposals, tickets, targets)
     Status {
         /// Output as JSON
@@ -419,6 +422,9 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                 check_agent_guard(is_agent, "admin schedule save")?;
                 commands::schedule::save(&payload).await
             }
+        },
+        AdminCommand::Topics(cmd) => match cmd {
+            commands::topics::TopicCommand::List { json } => commands::topics::list(json).await,
         },
         AdminCommand::Tickets(cmd) => match cmd {
             TicketCommand::Stats { json } => commands::admin_tickets::stats(json).await,

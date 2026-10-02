@@ -21,3 +21,4 @@ pub fn require_client() -> Result<TrpcClient> {
     let cfg = config::load().context("Not logged in. Run `konf login` first.")?;
     Ok(TrpcClient::from_config(&cfg))
 }
+pub mod topics;
