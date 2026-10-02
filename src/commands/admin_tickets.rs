@@ -65,9 +65,9 @@ pub async fn participants(workshop_only: bool, json: bool) -> Result<()> {
         for p in res {
             println!(
                 "{},{},{},\"{}\",{},{}",
-                p.first_name.replace(",", ""),
-                p.last_name.replace(",", ""),
-                p.email.replace(",", ""),
+                p.first_name.replace(',', ""),
+                p.last_name.replace(',', ""),
+                p.email.replace(',', ""),
                 p.categories.replace('"', ""),
                 p.is_comp,
                 p.grants_workshop
