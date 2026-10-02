@@ -85,6 +85,15 @@ enum TicketCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Export a raw CSV or JSON list of participants
+    Participants {
+        /// Filter down to only those with workshop access
+        #[arg(long)]
+        workshop_only: bool,
+        /// Output as JSON instead of CSV
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -422,6 +431,10 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
         },
         AdminCommand::Tickets(cmd) => match cmd {
             TicketCommand::Stats { json } => commands::admin_tickets::stats(json).await,
+            TicketCommand::Participants {
+                workshop_only,
+                json,
+            } => commands::admin_tickets::participants(workshop_only, json).await,
         },
         AdminCommand::Status { json } => commands::admin_status::run(json).await,
     }

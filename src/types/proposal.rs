@@ -480,7 +480,7 @@ mod tests {
         assert!(p.speakers.is_empty());
         assert!(p.topics.is_empty());
         assert!(p.reviews.is_empty());
-        assert!(p.description.is_empty());
+        assert_eq!(p.description.len(), 0);
     }
 
     #[test]

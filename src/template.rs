@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn find_unresolved_empty() {
-        assert!(find_unresolved_variables("Hello world").is_empty());
+        assert_eq!(find_unresolved_variables("Hello world").len(), 0);
     }
 
     #[test]
@@ -139,12 +139,12 @@ mod tests {
 
     #[test]
     fn find_unresolved_ignores_double_braces() {
-        assert!(find_unresolved_variables("Hello {{NAME}}!").is_empty());
+        assert_eq!(find_unresolved_variables("Hello {{NAME}}!").len(), 0);
     }
 
     #[test]
     fn find_unresolved_ignores_lowercase() {
-        assert!(find_unresolved_variables("Hello {{{name}}}!").is_empty());
+        assert_eq!(find_unresolved_variables("Hello {{{name}}}!").len(), 0);
     }
 
     #[test]

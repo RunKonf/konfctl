@@ -298,7 +298,7 @@ mod tests {
         assert!(s.sponsor.is_none());
         assert!(s.tier.is_none());
         assert!(s.contact_persons.is_empty());
-        assert!(s.tags.is_empty());
+        assert_eq!(s.tags.len(), 0);
         assert!(s.contract_value.is_none());
     }
 
@@ -341,7 +341,7 @@ mod tests {
         let s: SponsorForConference = serde_json::from_value(json).unwrap();
         assert_eq!(s.id, "sfc-null");
         assert!(s.contact_persons.is_empty());
-        assert!(s.tags.is_empty());
+        assert_eq!(s.tags.len(), 0);
     }
 
     #[test]

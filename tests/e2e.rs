@@ -1130,8 +1130,8 @@ async fn email_template_variable_substitution_e2e() {
     assert!(body.contains("Hans"));
 
     // No unresolved variables
-    assert!(template::find_unresolved_variables(&subject).is_empty());
-    assert!(template::find_unresolved_variables(&body).is_empty());
+    assert_eq!(template::find_unresolved_variables(&subject).len(), 0);
+    assert_eq!(template::find_unresolved_variables(&body).len(), 0);
 }
 
 #[tokio::test]
