@@ -74,8 +74,14 @@ pub async fn add(args: CreateArgs) -> Result<()> {
 
     let proposal: serde_json::Value = client.mutate("proposal.admin.create", &payload).await?;
 
-    let id = proposal.get("_id").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let title = proposal.get("title").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let id = proposal
+        .get("_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let title = proposal
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
 
     if crate::is_agent() {
         println!(
