@@ -1,8 +1,11 @@
 use anyhow::Result;
-use clap::{Args, Subcommand};
+use clap::Subcommand;
 
 use super::require_client;
-use crate::types::{Schedule, ScheduleStatus};
+use crate::types::Schedule;
+
+pub mod args;
+use args::{AddTalkArgs, ListArgs, RemoveTalkArgs};
 
 #[derive(Subcommand)]
 pub enum ScheduleCommand {
@@ -16,6 +19,10 @@ pub enum ScheduleCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Add a talk or placeholder to a schedule track
+    AddTalk(AddTalkArgs),
+    /// Remove a talk from a schedule track
+    RemoveTalk(RemoveTalkArgs),
     /// Promote a draft schedule to official
     Promote {
         /// Schedule ID
@@ -34,13 +41,6 @@ pub enum ScheduleCommand {
         #[arg(long, short = 'y')]
         yes: bool,
     },
-}
-
-#[derive(Args, Clone)]
-pub struct ListArgs {
-    /// Filter by status
-    #[arg(long, value_enum)]
-    pub status: Option<ScheduleStatus>,
 }
 
 pub async fn list(args: ListArgs) -> Result<()> {
@@ -165,6 +165,43 @@ pub async fn save(payload: &str) -> Result<()> {
         println!("{}", serde_json::to_string(&res)?);
     } else {
         println!("Successfully saved schedule.");
+    }
+    Ok(())
+}
+
+pub async fn add_talk(args: AddTalkArgs) -> Result<()> {
+    let client = require_client()?;
+    let payload = serde_json::json!({
+        "scheduleId": args.id,
+        "trackIndex": args.track,
+        "startTime": args.start,
+        "endTime": args.end,
+        "proposalId": args.proposal,
+        "placeholder": args.placeholder,
+    });
+    let res: serde_json::Value = client.mutate("schedule.admin.addTalk", &payload).await?;
+
+    if crate::is_agent() {
+        println!("{}", serde_json::to_string(&res)?);
+    } else {
+        println!("Successfully added talk to schedule {}.", args.id);
+    }
+    Ok(())
+}
+
+pub async fn remove_talk(args: RemoveTalkArgs) -> Result<()> {
+    let client = require_client()?;
+    let payload = serde_json::json!({
+        "scheduleId": args.id,
+        "trackIndex": args.track,
+        "talkIndex": args.talk,
+    });
+    let res: serde_json::Value = client.mutate("schedule.admin.removeTalk", &payload).await?;
+
+    if crate::is_agent() {
+        println!("{}", serde_json::to_string(&res)?);
+    } else {
+        println!("Successfully removed talk from schedule {}.", args.id);
     }
     Ok(())
 }

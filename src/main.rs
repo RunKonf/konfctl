@@ -422,6 +422,14 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
                 check_agent_guard(is_agent, "admin schedule save")?;
                 commands::schedule::save(&payload).await
             }
+            commands::schedule::ScheduleCommand::AddTalk(args) => {
+                check_agent_guard(is_agent, &format!("admin schedule add-talk {}", args.id))?;
+                commands::schedule::add_talk(args).await
+            }
+            commands::schedule::ScheduleCommand::RemoveTalk(args) => {
+                check_agent_guard(is_agent, &format!("admin schedule remove-talk {}", args.id))?;
+                commands::schedule::remove_talk(args).await
+            }
         },
         AdminCommand::Topics(cmd) => match cmd {
             commands::topics::TopicCommand::List { json } => commands::topics::list(json).await,
