@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use colored::Colorize;
 
-use crate::commands::require_client;
+use crate::{commands::require_client, types::Topic};
 
 #[derive(Subcommand)]
 pub enum TopicCommand {
@@ -12,14 +12,6 @@ pub enum TopicCommand {
         #[arg(long)]
         json: bool,
     },
-}
-
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub struct Topic {
-    pub _id: String,
-    pub title: String,
-    pub description: Option<String>,
-    pub color: Option<String>,
 }
 
 pub async fn list(json: bool) -> Result<()> {
@@ -40,9 +32,9 @@ pub async fn list(json: bool) -> Result<()> {
             return Ok(());
         }
 
-        println!("{:<35} {:<30}", "ID".bold().cyan(), "TITLE".bold().cyan());
+        println!("{:<37} {:<30}", "ID".bold().cyan(), "TITLE".bold().cyan());
         for t in &topics {
-            println!("{:<35} {:<30}", t._id, t.title);
+            println!("{:<37} {:<30}", t._id, t.title);
         }
     }
     Ok(())
