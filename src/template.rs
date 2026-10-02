@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn find_unresolved_empty() {
-        assert!(find_unresolved_variables("Hello world").is_empty());
+        assert_eq!(find_unresolved_variables("Hello world").len(), 0);
     }
 
     #[test]
