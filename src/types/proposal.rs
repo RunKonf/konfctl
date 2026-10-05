@@ -338,8 +338,8 @@ mod tests {
                 {"_id": "sp-1", "name": "Alice", "email": "alice@example.com", "image": "https://img/a.jpg"}
             ],
             "topics": [
-                {"title": "Kubernetes"},
-                {"title": "DevOps"}
+                {"_id": "t1", "title": "Kubernetes"},
+                {"_id": "t2", "title": "DevOps"}
             ],
             "reviews": [
                 {"score": {"content": 8.0, "relevance": 7.0, "speaker": 9.0}, "comment": "Great talk", "reviewer": {"name": "Bob"}}

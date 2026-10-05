@@ -25,7 +25,7 @@ fn proposal_json() -> serde_json::Value {
                     "speakers": [
                         {"_id": "sp-1", "name": "Alice Johnson", "email": "alice@example.com"}
                     ],
-                    "topics": [{"title": "Kubernetes"}, {"title": "DevOps"}],
+                    "topics": [{"_id": "topic-1", "title": "Kubernetes"}, {"_id": "topic-2", "title": "DevOps"}],
                     "reviews": [
                         {"score": {"content": 7.0, "relevance": 8.0, "speaker": 6.0}, "comment": "Solid proposal", "reviewer": {"name": "Bob"}}
                     ]
@@ -58,7 +58,7 @@ fn single_proposal_json() -> serde_json::Value {
                 "speakers": [
                     {"_id": "sp-1", "name": "Alice Johnson", "email": "alice@example.com"}
                 ],
-                "topics": [{"title": "Kubernetes"}],
+                "topics": [{"_id": "topic-1", "title": "Kubernetes"}],
                 "reviews": [
                     {"score": {"content": 7.0, "relevance": 8.0, "speaker": 6.0}, "comment": "Solid proposal", "reviewer": {"name": "Bob"}},
                     {"score": {"content": 9.0, "relevance": 10.0, "speaker": 9.0}, "comment": "Must accept!", "reviewer": {"name": "Carol"}}
