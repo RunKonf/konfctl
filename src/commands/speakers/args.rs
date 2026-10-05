@@ -52,6 +52,11 @@ pub enum SpeakerCommand {
     FindOrCreate(FindOrCreateArgs),
     /// Sync confirmed speakers with newsletter audience
     SyncAudience,
+    /// Issue speaker ticket invitation
+    IssueTicket {
+        /// Speaker ID
+        id: String,
+    },
 }
 
 #[derive(Args, Serialize)]

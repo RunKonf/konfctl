@@ -367,6 +367,10 @@ async fn run_admin_command(cmd: AdminCommand, is_agent: bool) -> Result<()> {
             commands::speakers::SpeakerCommand::SyncAudience => {
                 commands::speakers::sync_audience().await
             }
+            commands::speakers::SpeakerCommand::IssueTicket { id } => {
+                check_agent_guard(is_agent, &format!("admin speakers issue-ticket {id}"))?;
+                commands::speakers::issue_ticket(&id).await
+            }
         },
         AdminCommand::Featured(args) => commands::featured::run(args).await,
         AdminCommand::Messages(args) => {
