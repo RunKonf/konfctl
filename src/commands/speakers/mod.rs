@@ -432,7 +432,7 @@ pub async fn sync_audience() -> Result<()> {
 pub async fn issue_ticket(id: &str) -> Result<()> {
     let client = require_client()?;
 
-    let sp = ui::spinner(&format!("Issuing ticket for speaker {}…", id));
+    let sp = ui::spinner(&format!("Issuing ticket for speaker {id}…"));
     let result: serde_json::Value = client
         .mutate(
             "speaker.admin.sendTicketInvitation",

@@ -263,7 +263,8 @@ pub fn portable_text_to_plain(blocks: &[serde_json::Value]) -> String {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Topic {
-    pub _id: String,
+    #[serde(rename = "_id")]
+    pub id: String,
     pub title: String,
     #[serde(flatten)]
     pub data: serde_json::Map<String, serde_json::Value>,
