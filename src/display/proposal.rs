@@ -34,7 +34,11 @@ pub fn render_proposal_detail(proposal: &Proposal) -> String {
     }
 
     if !proposal.topics.is_empty() {
-        let topics: Vec<&str> = proposal.topics.iter().map(|t| t.title()).collect();
+        let topics: Vec<&str> = proposal
+            .topics
+            .iter()
+            .map(super::super::types::proposal::Topic::title)
+            .collect();
         if !topics.is_empty() {
             writeln!(buf, "\nTopics: {}", topics.join(", ")).unwrap();
         }
