@@ -428,3 +428,25 @@ pub async fn sync_audience() -> Result<()> {
     }
     Ok(())
 }
+
+pub async fn issue_ticket(id: &str) -> Result<()> {
+    let client = require_client()?;
+
+    let sp = ui::spinner(&format!("Issuing ticket for speaker {id}…"));
+    let result: serde_json::Value = client
+        .mutate(
+            "speaker.admin.sendTicketInvitation",
+            &serde_json::json!({ "speakerId": id }),
+        )
+        .await?;
+    sp.finish_and_clear();
+
+    if crate::is_agent() {
+        println!("{}", serde_json::to_string(&result)?);
+    } else {
+        println!("{} Ticket issued successfully.", "✔".green());
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    }
+
+    Ok(())
+}

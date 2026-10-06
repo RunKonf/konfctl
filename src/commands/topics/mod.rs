@@ -34,7 +34,7 @@ pub async fn list(json: bool) -> Result<()> {
 
         println!("{:<37} {:<30}", "ID".bold().cyan(), "TITLE".bold().cyan());
         for t in &topics {
-            println!("{:<37} {:<30}", t._id, t.title);
+            println!("{:<37} {:<30}", t.id, t.title);
         }
     }
     Ok(())

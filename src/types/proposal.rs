@@ -263,7 +263,8 @@ pub fn portable_text_to_plain(blocks: &[serde_json::Value]) -> String {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Topic {
-    pub _id: String,
+    #[serde(rename = "_id")]
+    pub id: String,
     pub title: String,
     #[serde(flatten)]
     pub data: serde_json::Map<String, serde_json::Value>,
@@ -337,8 +338,8 @@ mod tests {
                 {"_id": "sp-1", "name": "Alice", "email": "alice@example.com", "image": "https://img/a.jpg"}
             ],
             "topics": [
-                {"title": "Kubernetes"},
-                {"title": "DevOps"}
+                {"_id": "t1", "title": "Kubernetes"},
+                {"_id": "t2", "title": "DevOps"}
             ],
             "reviews": [
                 {"score": {"content": 8.0, "relevance": 7.0, "speaker": 9.0}, "comment": "Great talk", "reviewer": {"name": "Bob"}}
